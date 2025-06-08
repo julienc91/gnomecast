@@ -3,21 +3,22 @@ import gnomecast
 
 
 class FakeCast:
-  def __init__(self, cast_type=None, manufacturer=None, model_name=None):
-    self.device = FakeDevice(cast_type=cast_type, manufacturer=manufacturer, model_name=model_name)
+    def __init__(self, cast_type=None, manufacturer=None, model_name=None):
+        self.device = FakeDevice(
+            cast_type=cast_type, manufacturer=manufacturer, model_name=model_name
+        )
+
 
 class FakeDevice:
-  def __init__(self, **kwargs):
-    self.__dict__.update(kwargs)
-
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 
 class TestGnomecast(unittest.TestCase):
-
-  def test_1(self):
-    fmd = gnomecast.FileMetadata(
-      'pCU2GE07KW4.mkv',
-      _ffmpeg_output = '''
+    def test_1(self):
+        fmd = gnomecast.FileMetadata(
+            "pCU2GE07KW4.mkv",
+            _ffmpeg_output="""
 ffprobe version 4.1.4 Copyright (c) 2007-2019 the FFmpeg developers
   built with gcc 9 (GCC)
   configuration: --prefix=/usr --bindir=/usr/bin --datadir=/usr/share/ffmpeg --docdir=/usr/share/doc/ffmpeg --incdir=/usr/include/ffmpeg --libdir=/usr/lib64 --mandir=/usr/share/man --arch=x86_64 --optflags='-O2 -g -pipe -Wall -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -Wp,-D_GLIBCXX_ASSERTIONS -fexceptions -fstack-protector-strong -grecord-gcc-switches -specs=/usr/lib/rpm/redhat/redhat-hardened-cc1 -specs=/usr/lib/rpm/redhat/redhat-annobin-cc1 -m64 -mtune=generic -fasynchronous-unwind-tables -fstack-clash-protection -fcf-protection' --extra-ldflags='-Wl,-z,relro -Wl,--as-needed -Wl,-z,now -specs=/usr/lib/rpm/redhat/redhat-hardened-ld ' --extra-cflags=' ' --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libvo-amrwbenc --enable-version3 --enable-bzlib --disable-crystalhd --enable-fontconfig --enable-frei0r --enable-gcrypt --enable-gnutls --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libcdio --enable-libdrm --enable-libjack --enable-libfreetype --enable-libfribidi --enable-libgsm --enable-libmp3lame --enable-nvenc --enable-openal --enable-opencl --enable-opengl --enable-libopenjpeg --enable-libopus --enable-libpulse --enable-librsvg --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtheora --enable-libvorbis --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvpx --enable-libx264 --enable-libx265 --enable-libxvid --enable-libzvbi --enable-avfilter --enable-avresample --enable-postproc --enable-pthreads --disable-static --enable-shared --enable-gpl --disable-debug --disable-stripping --shlibdir=/usr/lib64 --enable-libmfx --enable-runtime-cpudetect
@@ -44,29 +45,53 @@ Input #0, matroska,webm, from 'pCU2GE07KW4.mkv':
     Stream #0:1(eng): Audio: opus, 48000 Hz, stereo, fltp (default)
     Metadata:
       DURATION        : 00:41:45.281000000
-    ''')
-    fmd.wait()
+    """,
+        )
+        fmd.wait()
 
-    self.assertEqual(fmd.container, 'mkv')
-    self.assertEqual(len(fmd.video_streams), 1)
-    self.assertEqual(fmd.video_streams[0].index, '0:0')
-    self.assertEqual(fmd.video_streams[0].codec, 'h264')
-    self.assertEqual(len(fmd.audio_streams), 1)
-    self.assertEqual(fmd.audio_streams[0].index, '0:1')
-    self.assertEqual(fmd.audio_streams[0].codec, 'opus')
-    self.assertEqual(fmd.audio_streams[0].title, 'eng')
-    self.assertEqual(fmd.audio_streams[0].channels, 2)
-    self.assertEqual(len(fmd.subtitles), 0)
+        self.assertEqual(fmd.container, "mkv")
+        self.assertEqual(len(fmd.video_streams), 1)
+        self.assertEqual(fmd.video_streams[0].index, "0:0")
+        self.assertEqual(fmd.video_streams[0].codec, "h264")
+        self.assertEqual(len(fmd.audio_streams), 1)
+        self.assertEqual(fmd.audio_streams[0].index, "0:1")
+        self.assertEqual(fmd.audio_streams[0].codec, "opus")
+        self.assertEqual(fmd.audio_streams[0].title, "eng")
+        self.assertEqual(fmd.audio_streams[0].channels, 2)
+        self.assertEqual(len(fmd.subtitles), 0)
 
-    cast = FakeCast(cast_type='video', manufacturer='Unknown manufacturer', model_name='Chromecast')
-    transcoder = gnomecast.Transcoder(cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True)
+        cast = FakeCast(
+            cast_type="video",
+            manufacturer="Unknown manufacturer",
+            model_name="Chromecast",
+        )
+        transcoder = gnomecast.Transcoder(
+            cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True
+        )
 
-    self.assertEqual(transcoder.transcode_cmd[:-1], ['ffmpeg', '-i', 'pCU2GE07KW4.mkv', '-map', '0:0', '-map', '0:1', '-c:v', 'copy', '-c:a', 'mp3', '-b:a', '256k'])
+        self.assertEqual(
+            transcoder.transcode_cmd[:-1],
+            [
+                "ffmpeg",
+                "-i",
+                "pCU2GE07KW4.mkv",
+                "-map",
+                "0:0",
+                "-map",
+                "0:1",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "mp3",
+                "-b:a",
+                "256k",
+            ],
+        )
 
-  def test_2(self):
-    fmd = gnomecast.FileMetadata(
-      'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv',
-      _ffmpeg_output = '''
+    def test_2(self):
+        fmd = gnomecast.FileMetadata(
+            "Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv",
+            _ffmpeg_output="""
 Input #0, matroska,webm, from 'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv':
   Metadata:
     title           : Godzilla: King of the Monsters
@@ -194,46 +219,152 @@ Input #0, matroska,webm, from 'Godzilla - King of the Monsters (2019) (2160p Blu
       _STATISTICS_WRITING_APP-eng: mkvmerge v32.0.0 ('Astral Progressions') 64-bit
       _STATISTICS_WRITING_DATE_UTC-eng: 2019-08-23 10:49:27
       _STATISTICS_TAGS-eng: BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES
-    ''')
-    fmd.wait()
-    self.assertEqual(fmd.container, 'mkv')
-    self.assertEqual(len(fmd.video_streams), 1)
-    self.assertEqual(fmd.video_streams[0].index, '0:0')
-    self.assertEqual(fmd.video_streams[0].codec, 'hevc')
-    self.assertEqual(len(fmd.audio_streams), 2)
-    self.assertEqual(fmd.audio_streams[0].index, '0:1')
-    self.assertEqual(fmd.audio_streams[0].codec, 'aac')
-    self.assertEqual(fmd.audio_streams[0].title, 'eng')
-    self.assertEqual(fmd.audio_streams[0].channels, 8)
-    self.assertEqual(fmd.audio_streams[1].index, '0:2')
-    self.assertEqual(fmd.audio_streams[1].codec, 'aac')
-    self.assertEqual(fmd.audio_streams[1].title, 'Commentary')
-    self.assertEqual(fmd.audio_streams[1].channels, 2)
-    self.assertEqual(len(fmd.subtitles), 6)
-    self.assertEqual([s.title for s in fmd.subtitles], ['eng', 'ara', 'chi', 'fre', 'kor', 'spa'])
-    
-    print(fmd)
+    """,
+        )
+        fmd.wait()
+        self.assertEqual(fmd.container, "mkv")
+        self.assertEqual(len(fmd.video_streams), 1)
+        self.assertEqual(fmd.video_streams[0].index, "0:0")
+        self.assertEqual(fmd.video_streams[0].codec, "hevc")
+        self.assertEqual(len(fmd.audio_streams), 2)
+        self.assertEqual(fmd.audio_streams[0].index, "0:1")
+        self.assertEqual(fmd.audio_streams[0].codec, "aac")
+        self.assertEqual(fmd.audio_streams[0].title, "eng")
+        self.assertEqual(fmd.audio_streams[0].channels, 8)
+        self.assertEqual(fmd.audio_streams[1].index, "0:2")
+        self.assertEqual(fmd.audio_streams[1].codec, "aac")
+        self.assertEqual(fmd.audio_streams[1].title, "Commentary")
+        self.assertEqual(fmd.audio_streams[1].channels, 2)
+        self.assertEqual(len(fmd.subtitles), 6)
+        self.assertEqual(
+            [s.title for s in fmd.subtitles], ["eng", "ara", "chi", "fre", "kor", "spa"]
+        )
 
-    cast = FakeCast(cast_type='video', manufacturer='Unknown manufacturer', model_name='Chromecast Ultra')
+        print(fmd)
 
-    transcoder = gnomecast.Transcoder(cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True)
-    self.assertEqual(transcoder.transcode_cmd[:-1], ['ffmpeg', '-i', 'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv', '-map', '0:0', '-map', '0:1', '-c:v', 'copy', '-c:a', 'ac3', '-b:a', '256k'])
+        cast = FakeCast(
+            cast_type="video",
+            manufacturer="Unknown manufacturer",
+            model_name="Chromecast Ultra",
+        )
 
-    transcoder = gnomecast.Transcoder(cast, fmd, fmd.video_streams[0], fmd.audio_streams[1], None, fake=True)
-    self.assertEqual(transcoder.transcode_cmd[:-1], ['ffmpeg', '-i', 'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv', '-map', '0:0', '-map', '0:2', '-c:v', 'copy', '-c:a', 'mp3', '-b:a', '256k'])
+        transcoder = gnomecast.Transcoder(
+            cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True
+        )
+        self.assertEqual(
+            transcoder.transcode_cmd[:-1],
+            [
+                "ffmpeg",
+                "-i",
+                "Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv",
+                "-map",
+                "0:0",
+                "-map",
+                "0:1",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "ac3",
+                "-b:a",
+                "256k",
+            ],
+        )
 
-    cast = FakeCast(cast_type='video', manufacturer='Unknown manufacturer', model_name='Chromecast')
-    transcoder = gnomecast.Transcoder(cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True)
-    self.assertEqual(transcoder.transcode_cmd[:-1], ['ffmpeg', '-i', 'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv', '-map', '0:0', '-map', '0:1', '-c:v', 'h264', '-c:a', 'mp3', '-b:a', '256k'])
+        transcoder = gnomecast.Transcoder(
+            cast, fmd, fmd.video_streams[0], fmd.audio_streams[1], None, fake=True
+        )
+        self.assertEqual(
+            transcoder.transcode_cmd[:-1],
+            [
+                "ffmpeg",
+                "-i",
+                "Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv",
+                "-map",
+                "0:0",
+                "-map",
+                "0:2",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "mp3",
+                "-b:a",
+                "256k",
+            ],
+        )
 
-    cast = FakeCast(cast_type='video', manufacturer='VIZIO', model_name='P75-F1')
-    transcoder = gnomecast.Transcoder(cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True)
-    self.assertEqual(transcoder.transcode_cmd[:-1], ['ffmpeg', '-i', 'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv', '-map', '0:0', '-map', '0:1', '-c:v', 'copy', '-c:a', 'ac3', '-b:a', '256k'])
+        cast = FakeCast(
+            cast_type="video",
+            manufacturer="Unknown manufacturer",
+            model_name="Chromecast",
+        )
+        transcoder = gnomecast.Transcoder(
+            cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True
+        )
+        self.assertEqual(
+            transcoder.transcode_cmd[:-1],
+            [
+                "ffmpeg",
+                "-i",
+                "Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv",
+                "-map",
+                "0:0",
+                "-map",
+                "0:1",
+                "-c:v",
+                "h264",
+                "-c:a",
+                "mp3",
+                "-b:a",
+                "256k",
+            ],
+        )
 
-    cast = FakeCast(cast_type='video', manufacturer='UNK', model_name='UNK')
-    transcoder = gnomecast.Transcoder(cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True)
-    self.assertEqual(transcoder.transcode_cmd[:-1], ['ffmpeg', '-i', 'Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv', '-map', '0:0', '-map', '0:1', '-c:v', 'copy', '-c:a', 'ac3', '-b:a', '256k'])
+        cast = FakeCast(cast_type="video", manufacturer="VIZIO", model_name="P75-F1")
+        transcoder = gnomecast.Transcoder(
+            cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True
+        )
+        self.assertEqual(
+            transcoder.transcode_cmd[:-1],
+            [
+                "ffmpeg",
+                "-i",
+                "Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv",
+                "-map",
+                "0:0",
+                "-map",
+                "0:1",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "ac3",
+                "-b:a",
+                "256k",
+            ],
+        )
+
+        cast = FakeCast(cast_type="video", manufacturer="UNK", model_name="UNK")
+        transcoder = gnomecast.Transcoder(
+            cast, fmd, fmd.video_streams[0], fmd.audio_streams[0], None, fake=True
+        )
+        self.assertEqual(
+            transcoder.transcode_cmd[:-1],
+            [
+                "ffmpeg",
+                "-i",
+                "Godzilla - King of the Monsters (2019) (2160p BluRay x265 10bit HDR Tigole).mkv",
+                "-map",
+                "0:0",
+                "-map",
+                "0:1",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "ac3",
+                "-b:a",
+                "256k",
+            ],
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
