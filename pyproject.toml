@@ -1,0 +1,12 @@
+[project]
+name = "gnomecast"
+version = "1.9.11"
+requires-python = ">=3.10"
+dependencies = [
+    "bottle>=0.13.3",
+    "html5lib>=1.1",
+    "paste>=3.10.1",
+    "pycaption>=1.0.7",
+    "pychromecast>=7.7.2",
+    "pygobject>=3.52.3",
+]
