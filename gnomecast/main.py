@@ -11,6 +11,8 @@ import time
 import traceback
 import urllib
 
+from .version import __version__
+
 
 DEPS_MET = True
 try:
@@ -58,7 +60,7 @@ Thanks! - Gnomecast
     print(ERROR_MESSAGE.format(line, line))
     sys.exit(1)
 
-__version__ = "1.9.11"
+
 
 if DEPS_MET:
     pycaption.WebVTTWriter._encode = lambda self, s: s
@@ -1960,7 +1962,3 @@ def main():
     delete_old_transcodes()
     caster = Gnomecast()
     arg_parse(sys.argv[1:], {"s": "subtitles", "d": "device"}, caster.run, USAGE)
-
-
-if DEPS_MET and __name__ == "__main__":
-    main()

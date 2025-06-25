@@ -1,5 +1,5 @@
 import unittest
-import gnomecast
+from gnomecast import gnomecast
 
 
 class FakeCast:

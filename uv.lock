@@ -124,8 +124,7 @@ wheels = [
 
 [[package]]
 name = "gnomecast"
-version = "1.9.11"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "bottle" },
     { name = "html5lib" },

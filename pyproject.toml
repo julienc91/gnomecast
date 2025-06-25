@@ -1,6 +1,6 @@
 [project]
 name = "gnomecast"
-version = "1.9.11"
+dynamic = ["version"]
 description = "A native Linux GUI for Chromecasting local files."
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
@@ -29,6 +29,9 @@ classifiers = [
 [build-system]
 requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "gnomecast/version.py"
 
 [project.gui-scripts]
 gnomecast = "gnomecast:main"
