@@ -40,16 +40,3 @@ gnomecast = "gnomecast:main"
 dev = [
     "ruff>=0.11.13",
 ]
-
-[tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["gnomecast*"]
-
-[tool.setuptools.data-files]
-"share/icons/hicolor/16x16/apps" = ["icons/gnomecast_16.png"]
-"share/icons/hicolor/48x48/apps" = ["icons/gnomecast_48.png"]
-"share/icons/hicolor/scalable/apps" = ["icons/gnomecast.svg"]
-"share/applications" = ["gnomecast.desktop"]
