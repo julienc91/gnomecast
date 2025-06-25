@@ -496,7 +496,7 @@ class Transcoder(object):
                     items = [s.split("=") for s in line.split()]
                     d = dict([x for x in items if len(x) == 2])
                     print(d)
-                    self.progress_bytes = int(d.get("size", "0kb")[:-2]) * 1024
+                    self.progress_bytes = int(d.get("size", "0kb").lower().rstrip("kib")) * 1024
                     self.progress_seconds = parse_ffmpeg_time(d.get("time", "00:00:00"))
                     line = b""
         if self.p:
