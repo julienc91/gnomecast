@@ -1,8 +1,6 @@
-import contextlib
 import os
 import re
 import signal
-import socket
 import subprocess
 import sys
 import tempfile
@@ -524,30 +522,6 @@ class Transcoder(object):
 
 class Gnomecast(object):
     def __init__(self):
-        self.ip = (
-            (
-                [
-                    ip
-                    for ip in socket.gethostbyname_ex(socket.gethostname())[2]
-                    if not ip.startswith("127.")
-                ]
-                or [
-                    [
-                        (s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
-                        for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
-                    ][0][1]
-                ]
-            )
-            + [None]
-        )[0]
-        if "GNOMECAST_HTTP_PORT" in os.environ:
-            self.port = int(os.environ["GNOMECAST_HTTP_PORT"])
-        else:
-            with contextlib.closing(
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            ) as s:
-                s.bind(("0.0.0.0", 0))
-                self.port = s.getsockname()[1]
         self.webserver = None
         self.cast = None
         self.last_known_player_state = None
@@ -616,8 +590,6 @@ class Gnomecast(object):
 
     def start_server(self):
         self.webserver = GnomecastWebServer(
-            ip=self.ip,
-            port=self.port,
             get_subtitles=lambda: self.subtitles,
             get_transcoder=lambda: self.transcoder,
         )
@@ -1187,17 +1159,15 @@ class Gnomecast(object):
             mc = cast.media_controller
             kwargs = {}
             if self.subtitles:
-                kwargs["subtitles"] = "http://%s:%s/subtitles.vtt" % (
-                    self.ip,
-                    self.port,
-                )
+                kwargs["subtitles"] = self.webserver.get_subtitles_url()
+
             current_time = self.scrubber_adj.get_value()
             if current_time:
                 kwargs["current_time"] = current_time
             ext = self.fn.split(".")[-1]
             ext = "".join(ch for ch in ext if ch.isalnum()).lower()
             mc.play_media(
-                "http://%s:%s/media/%s.%s" % (self.ip, self.port, hash(self.fn), ext),
+                f"{self.webserver.get_media_base_url()}/{hash(self.fn)}.{ext}",
                 "audio/%s" % ext if ext in AUDIO_EXTS else "video/mp4",
                 **kwargs,
             )
