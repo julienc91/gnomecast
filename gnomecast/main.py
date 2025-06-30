@@ -13,6 +13,7 @@ import urllib
 from pathlib import Path
 
 from .version import __version__
+from .webserver import GnomecastWebServer
 
 
 DEPS_MET = True
@@ -60,7 +61,6 @@ Thanks! - Gnomecast
 """
     print(ERROR_MESSAGE.format(line, line))
     sys.exit(1)
-
 
 
 if DEPS_MET:
@@ -496,7 +496,9 @@ class Transcoder(object):
                     items = [s.split("=") for s in line.split()]
                     d = dict([x for x in items if len(x) == 2])
                     print(d)
-                    self.progress_bytes = int(d.get("size", "0kb").lower().rstrip("kib")) * 1024
+                    self.progress_bytes = (
+                        int(d.get("size", "0kb").lower().rstrip("kib")) * 1024
+                    )
                     self.progress_seconds = parse_ffmpeg_time(d.get("time", "00:00:00"))
                     line = b""
         if self.p:
@@ -546,7 +548,7 @@ class Gnomecast(object):
             ) as s:
                 s.bind(("0.0.0.0", 0))
                 self.port = s.getsockname()[1]
-        self.app = bottle.Bottle()
+        self.webserver = None
         self.cast = None
         self.last_known_player_state = None
         self.last_known_current_time = None
@@ -613,45 +615,13 @@ class Gnomecast(object):
             GLib.idle_add(f)
 
     def start_server(self):
-        app = self.app
-
-        @app.route("/subtitles.vtt")
-        def subtitles():
-            # response = bottle.static_file(self.subtitles_fn, root='/', mimetype='text/vtt')
-            response = bottle.response
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "GET, HEAD"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-            response.headers["Content-Type"] = "text/vtt"
-            return self.subtitles
-
-        @app.get("/media/<id>.<ext>")
-        def video(id, ext):
-            print(list(bottle.request.headers.items()))
-            ranges = list(
-                bottle.parse_range_header(
-                    bottle.request.environ["HTTP_RANGE"], 1000000000000
-                )
-            )
-            print("ranges", ranges)
-            offset, end = ranges[0]
-            self.transcoder.wait_for_byte(offset)
-            response = bottle.static_file(self.transcoder.fn, root="/")
-            if "Last-Modified" in response.headers:
-                del response.headers["Last-Modified"]
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "GET, HEAD"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-            return response
-
-        # app.run(host=self.ip, port=self.port, server='paste', daemon=True)
-        from paste import httpserver
-        from paste.translogger import TransLogger
-
-        handler = TransLogger(app, setup_console_handler=True)
-        httpserver.serve(
-            handler, host=self.ip, port=str(self.port), daemon_threads=True
+        self.webserver = GnomecastWebServer(
+            ip=self.ip,
+            port=self.port,
+            get_subtitles=lambda: self.subtitles,
+            get_transcoder=lambda: self.transcoder,
         )
+        self.webserver.start()
 
     def update_status(self, did_transcode=False):
         if did_transcode:
@@ -1680,7 +1650,7 @@ class Gnomecast(object):
 
 %s
 
-```%s```""" % (msg, fmd, fmd._important_ffmpeg)
+```%s``` """ % (msg, fmd, fmd._important_ffmpeg)
             url = (
                 "https://github.com/keredson/gnomecast/issues/new?title=%s&body=%s"
                 % (urllib.parse.quote(title), urllib.parse.quote(body))
