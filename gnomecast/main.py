@@ -19,12 +19,6 @@ DEPS_MET = True
 try:
     import pychromecast
     import bottle
-    import html5lib.treebuilders
-
-    # hack fixing pycaption needing an old version of html5lib
-    if not hasattr(html5lib.treebuilders, "_base"):
-        html5lib.treebuilders._base = html5lib.treebuilders.base
-
     import pycaption
 except Exception as e:
     traceback.print_exc()
