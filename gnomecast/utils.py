@@ -1,5 +1,7 @@
 import os
 import socket
+import threading
+from collections.abc import Callable
 
 
 def get_webserver_ip_address() -> str:
@@ -24,3 +26,34 @@ def get_webserver_port() -> int:
             s.bind(("0.0.0.0", 0))
             _, port = s.getsockname()
         return port
+
+
+def throttle(seconds: float) -> Callable[[Callable], Callable]:
+    def decorator(f: Callable) -> Callable:
+        timer = None
+        latest_args, latest_kwargs = (), {}
+
+        def run_f():
+            nonlocal timer, latest_args, latest_kwargs
+            f(*latest_args, **latest_kwargs)
+            timer = None
+
+        def wrapper(*args, **kwargs) -> None:
+            nonlocal timer, latest_args, latest_kwargs
+            latest_args, latest_kwargs = args, kwargs
+            if timer is None:
+                timer = threading.Timer(seconds, run_f)
+                timer.start()
+
+        return wrapper
+
+    return decorator
+
+
+def is_pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True

@@ -10,6 +10,7 @@ import traceback
 import urllib
 from pathlib import Path
 
+from .utils import throttle, is_pid_running
 from .version import __version__
 from .webserver import GnomecastWebServer
 
@@ -78,29 +79,6 @@ HARDWARE = {
     ("Unknown manufacturer", "Google Home"): Device(h265=False, ac3=False),
     ("VIZIO", "P75-F1"): Device(h265=True, ac3=True),
 }
-
-
-def throttle(seconds=2):
-    def decorator(f):
-        timer = None
-        lastest_args, latest_kwargs = None, None
-
-        def run_f():
-            nonlocal timer, lastest_args, latest_kwargs
-            ret = f(*lastest_args, **latest_kwargs)
-            timer = None
-            return ret
-
-        def wrapper(*args, **kwargs):
-            nonlocal timer, lastest_args, latest_kwargs
-            lastest_args, latest_kwargs = args, kwargs
-            if timer is None:
-                timer = threading.Timer(seconds, run_f)
-                timer.start()
-
-        return wrapper
-
-    return decorator
 
 
 def find_screensaver_dbus_iface(bus):
@@ -1080,7 +1058,7 @@ class Gnomecast(object):
             self.cast.set_volume(volume)
             print("setting volume", volume)
 
-    @throttle()
+    @throttle(seconds=2)
     def scrubber_moved(self, scale, scroll_type, seconds):
         print("scrubber_moved", seconds)
         self.seeking = True
@@ -1761,15 +1739,6 @@ python gnomecast.py [<media_filename>] [-d|--device <chromecast_name>] [-s|--sub
 """.strip()
 
 
-def pid_running(pid):
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    else:
-        return True
-
-
 def delete_old_transcodes():
     # if process is killed old transcoded files can be left around
     # delete if found
@@ -1781,7 +1750,7 @@ def delete_old_transcodes():
             match = re.search(r"gnomecast_pid(\d+)_", fn)
             if match:
                 pid = int(match.group(1))
-                if not pid_running(pid):
+                if not is_pid_running(pid):
                     print("\tpid", pid, "is dead, so deleting", fn)
                     os.remove(fn)
             else:
