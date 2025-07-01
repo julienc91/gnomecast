@@ -1,7 +1,7 @@
 import os
 import socket
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 
 def get_webserver_ip_address() -> str:
@@ -57,3 +57,24 @@ def is_pid_running(pid: int) -> bool:
         return False
     else:
         return True
+
+
+def start_thread(
+    target: Callable,
+    *,
+    args: Iterable | None = None,
+    kwargs: dict | None = None,
+    delay: float | None = None,
+    daemon: bool = False,
+) -> None:
+    args = args or ()
+    kwargs = kwargs or {}
+    if delay:
+        if daemon:
+            raise ValueError("Cannot use delay with daemon threads")
+        thread = threading.Timer(delay, target, args=args, kwargs=kwargs)
+    else:
+        thread = threading.Thread(
+            target=target, args=args, kwargs=kwargs, daemon=daemon
+        )
+    thread.start()

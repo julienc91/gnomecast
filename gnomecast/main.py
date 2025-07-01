@@ -13,7 +13,7 @@ from pathlib import Path
 from .devices import get_device, Device
 from .ffmpeg import parse_ffmpeg_time
 from .screensaver import ScreenSaverInhibitor
-from .utils import throttle, is_pid_running
+from .utils import throttle, is_pid_running, start_thread
 from .version import __version__
 from .webserver import GnomecastWebServer
 
@@ -188,7 +188,7 @@ class FileMetadata(object):
             if callback:
                 callback(self)
 
-        threading.Thread(target=parse).start()
+        start_thread(parse)
 
     def wait(self):
         while not self.ready:
@@ -346,9 +346,7 @@ class Transcoder(object):
                 self.p = subprocess.Popen(
                     self.transcode_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
                 )
-                t = threading.Thread(target=self.monitor)
-                t.daemon = True
-                t.start()
+                start_thread(self.monitor, daemon=True)
         else:
             self.done = True
             self.done_callback()
@@ -457,13 +455,9 @@ class Gnomecast(object):
     def run(self, fn=None, device=None, subtitles=None):
         self.build_gui()
         self.init_casts(device=device)
-        threading.Thread(target=self.check_ffmpeg).start()
-        t = threading.Thread(target=self.start_server)
-        t.daemon = True
-        t.start()
-        t = threading.Thread(target=self.monitor_cast)
-        t.daemon = True
-        t.start()
+        start_thread(self.check_ffmpeg)
+        start_thread(self.start_server, daemon=True)
+        start_thread(self.monitor_cast, daemon=True)
         if fn:
             self.queue_files([fn])
         if subtitles:
@@ -581,7 +575,7 @@ class Gnomecast(object):
         self.cast_store.clear()
         self.cast_store.append([None, "Searching local network - please wait..."])
         self.cast_combo.set_active(0)
-        threading.Thread(target=self.load_casts, kwargs={"device": device}).start()
+        start_thread(self.load_casts, kwargs={"device": device})
 
     def load_casts(self, device=None):
         chromecasts = pychromecast.get_chromecasts()
@@ -960,7 +954,7 @@ class Gnomecast(object):
             self.files_store.append(
                 [display, fn, None, "...", None, None, None, None, fmd]
             )
-            threading.Thread(target=self.get_info, args=[fn]).start()
+            start_thread(self.get_info, args=[fn])
         self.scrolled_window.set_visible(True)
         if len(files) and self.fn is None:
             self.select_file(files[0])
@@ -1278,9 +1272,9 @@ class Gnomecast(object):
                     self.duration = row[2]
                 else:
                     row[6] = None
-            threading.Thread(target=self.update_transcoders).start()
-            threading.Thread(target=self.update_audio_tracks).start()
-            threading.Thread(target=self.update_subtitles).start()
+            start_thread(self.update_transcoders)
+            start_thread(self.update_audio_tracks)
+            start_thread(self.update_subtitles)
             self.update_button_visible()
             self.update_media_button_states()
 
@@ -1449,7 +1443,7 @@ class Gnomecast(object):
             self.volume_button.set_value(cast.media_controller.status.volume_level)
         self.last_known_player_state = None
         self.update_media_button_states()
-        threading.Thread(target=self.update_transcoders).start()
+        start_thread(self.update_transcoders)
 
     def error_callback(self, msg):
         def f():
@@ -1613,7 +1607,7 @@ class Gnomecast(object):
                     def f():
                         self.play_clicked(None)
 
-                    threading.Timer(1, lambda: GLib.idle_add(f)).start()
+                    start_thread(GLib.iddle_add, args=(f,), delay=1)
         else:
             entry = combo.get_child()
 
@@ -1625,7 +1619,7 @@ class Gnomecast(object):
             print(text, video_stream, audio_stream)
             self.video_stream = video_stream
             self.audio_stream = audio_stream
-            threading.Thread(target=self.update_transcoders).start()
+            start_thread(self.update_transcoders)
 
 
 def arg_parse(args, kw_synonyms, f, usage):
