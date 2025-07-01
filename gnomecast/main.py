@@ -10,6 +10,7 @@ import traceback
 import urllib
 from pathlib import Path
 
+from .devices import get_device, Device
 from .utils import throttle, is_pid_running
 from .version import __version__
 from .webserver import GnomecastWebServer
@@ -58,21 +59,6 @@ Thanks! - Gnomecast
 
 if DEPS_MET:
     pycaption.WebVTTWriter._encode = lambda self, s: s
-
-
-class Device:
-    def __init__(self, h265=None, ac3=None):
-        self.h265 = h265
-        self.ac3 = ac3
-
-
-HARDWARE = {
-    ("Unknown manufacturer", "Chromecast"): Device(h265=False, ac3=False),
-    ("Unknown manufacturer", "Chromecast Ultra"): Device(h265=True, ac3=True),
-    ("Unknown manufacturer", "Google Home Mini"): Device(h265=False, ac3=False),
-    ("Unknown manufacturer", "Google Home"): Device(h265=False, ac3=False),
-    ("VIZIO", "P75-F1"): Device(h265=True, ac3=True),
-}
 
 
 def find_screensaver_dbus_iface(bus):
@@ -357,13 +343,9 @@ class Transcoder(object):
             )[1]
             os.remove(self.trans_fn)
 
-            device_info = HARDWARE.get(
-                (self.cast.cast_info.manufacturer, self.cast.cast_info.model_name)
-            )
-            ac3 = device_info.ac3 if device_info else None
             transcode_audio_to = (
                 "ac3"
-                if (ac3 or ac3 is None) and audio_stream and audio_stream.channels > 2
+                if self.device.ac3 and audio_stream and audio_stream.channels > 2
                 else "mp3"
             )
 
@@ -406,18 +388,17 @@ class Transcoder(object):
             self.done_callback()
 
     @property
+    def device(self) -> Device:
+        return get_device(
+            self.cast.cast_info.manufacturer, self.cast.cast_info.model_name
+        )
+
+    @property
     def fn(self):
         return self.trans_fn if self.transcode else self.source_fn
 
     def can_play_video_codec(self, video_codec):
-        h265 = True
-        if self.cast.cast_info.cast_type == "audio":
-            h265 = False
-        device_info = HARDWARE.get(
-            (self.cast.cast_info.manufacturer, self.cast.cast_info.model_name)
-        )
-        if device_info and device_info.h265 is not None:
-            h265 = device_info.h265
+        h265 = False if self.cast.cast_info.cast_type == "audio" else self.device.h265
         if h265:
             return video_codec in ("h264", "h265", "hevc")
         else:
@@ -426,11 +407,7 @@ class Transcoder(object):
     def can_play_audio_stream(self, stream):
         if not stream:
             return True
-        device_info = HARDWARE.get(
-            (self.cast.cast_info.manufacturer, self.cast.cast_info.model_name)
-        )
-        ac3 = device_info.ac3 if device_info else None
-        if ac3:
+        if self.device.ac3:
             return stream.codec in ("aac", "mp3", "ac3")
         else:
             return stream.codec in ("aac", "mp3")
