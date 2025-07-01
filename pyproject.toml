@@ -11,6 +11,7 @@ urls = { Homepage = "https://github.com/keredson/gnomecast" }
 requires-python = ">=3.10"
 dependencies = [
     "bottle~=0.13.3",
+    "dbus-python>=1.4.0",
     "html5lib~=1.1",
     "paste~=3.10.1",
     "pycaption~=2.2.16",

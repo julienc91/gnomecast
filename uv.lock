@@ -123,10 +123,17 @@ wheels = [
 ]
 
 [[package]]
+name = "dbus-python"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/24/63118050c7dd7be04b1ccd60eab53fef00abe844442e1b6dec92dae505d6/dbus-python-1.4.0.tar.gz", hash = "sha256:991666e498f60dbf3e49b8b7678f5559b8a65034fdf61aae62cdecdb7d89c770", size = 232490, upload-time = "2025-03-13T19:57:54.212Z" }
+
+[[package]]
 name = "gnomecast"
 source = { editable = "." }
 dependencies = [
     { name = "bottle" },
+    { name = "dbus-python" },
     { name = "html5lib" },
     { name = "paste" },
     { name = "pycaption" },
@@ -142,6 +149,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bottle", specifier = "~=0.13.3" },
+    { name = "dbus-python", specifier = ">=1.4.0" },
     { name = "html5lib", specifier = "~=1.1" },
     { name = "paste", specifier = "~=3.10.1" },
     { name = "pycaption", specifier = "~=2.2.16" },

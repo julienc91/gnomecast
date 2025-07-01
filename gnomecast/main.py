@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .devices import get_device, Device
 from .ffmpeg import parse_ffmpeg_time
+from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running
 from .version import __version__
 from .webserver import GnomecastWebServer
@@ -26,15 +27,6 @@ except Exception as e:
     traceback.print_exc()
     print(e)
     DEPS_MET = False
-
-DBUS_AVAILABLE = False
-try:
-    import dbus
-
-    DBUS_AVAILABLE = True
-except Exception as e:
-    print(e)
-
 
 try:
     import gi
@@ -60,23 +52,6 @@ Thanks! - Gnomecast
 
 if DEPS_MET:
     pycaption.WebVTTWriter._encode = lambda self, s: s
-
-
-def find_screensaver_dbus_iface(bus):
-    """Searches the DBus names for Screensaver and returns correct Interface"""
-    if not DBUS_AVAILABLE:
-        return None
-    for path, name in [
-        ("org.freedesktop.ScreenSaver", "/ScreenSaver"),
-        ("org.mate.ScreenSaver", "/ScreenSaver"),
-    ]:
-        try:
-            saver = bus.get_object(path, name)
-            return dbus.Interface(saver, dbus_interface=path)
-        except dbus.exceptions.DBusException as e:
-            # wrong path, try next one
-            print(e)
-    return None
 
 
 AUDIO_EXTS = ("aac", "mp3", "wav")
@@ -476,9 +451,7 @@ class Gnomecast(object):
         self.subtitles = None
         self.seeking = False
         self.last_known_volume_level = None
-        bus = dbus.SessionBus() if DBUS_AVAILABLE else None
-        self.saver_interface = find_screensaver_dbus_iface(bus)
-        self.inhibit_screensaver_cookie = None
+        self.screen_saver_inhibitor = ScreenSaverInhibitor()
         self.autoplay = False
 
     def run(self, fn=None, device=None, subtitles=None):
@@ -576,9 +549,9 @@ class Gnomecast(object):
                 ):
                     self.check_for_next_in_queue()
                 if mc.status.player_state == "PLAYING":
-                    self.inhibit_screensaver()
+                    self.screen_saver_inhibitor.start()
                 else:
-                    self.restore_screensaver()
+                    self.screen_saver_inhibitor.stop()
                 self.last_known_player_state = mc.status.player_state
 
                 def f():
@@ -609,20 +582,6 @@ class Gnomecast(object):
         self.cast_store.append([None, "Searching local network - please wait..."])
         self.cast_combo.set_active(0)
         threading.Thread(target=self.load_casts, kwargs={"device": device}).start()
-
-    def inhibit_screensaver(self):
-        if not self.saver_interface or self.inhibit_screensaver_cookie:
-            return
-        self.inhibit_screensaver_cookie = self.saver_interface.Inhibit(
-            "Gnomecast", "Player is playing..."
-        )
-        print("disabled screensaver")
-
-    def restore_screensaver(self):
-        if self.saver_interface and self.inhibit_screensaver_cookie:
-            self.saver_interface.UnInhibit(self.inhibit_screensaver_cookie)
-            self.inhibit_screensaver_cookie = None
-            print("restored screensaver")
 
     def load_casts(self, device=None):
         chromecasts = pychromecast.get_chromecasts()
@@ -1060,7 +1019,7 @@ class Gnomecast(object):
             thumbnail_fn = row[4]
             if thumbnail_fn and os.path.isfile(thumbnail_fn):
                 os.remove(thumbnail_fn)
-        self.restore_screensaver()
+        self.screen_saver_inhibitor.stop()
         Gtk.main_quit()
 
     def forward_clicked(self, widget):
