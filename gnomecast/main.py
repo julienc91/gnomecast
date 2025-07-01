@@ -11,6 +11,7 @@ import urllib
 from pathlib import Path
 
 from .devices import get_device, Device
+from .ffmpeg import parse_ffmpeg_time
 from .utils import throttle, is_pid_running
 from .version import __version__
 from .webserver import GnomecastWebServer
@@ -79,16 +80,6 @@ def find_screensaver_dbus_iface(bus):
 
 
 AUDIO_EXTS = ("aac", "mp3", "wav")
-
-
-def parse_ffmpeg_time(time_s):
-    """
-    Converts ffmpeg's time string to number of seconds
-    :param time_s:
-    :return: number of seconds
-    """
-    hours, minutes, seconds = (float(s) for s in time_s.split(":"))
-    return hours * 60 * 60 + minutes * 60 + seconds
 
 
 class StreamMetadata:
