@@ -21,7 +21,6 @@ from .webserver import GnomecastWebServer
 DEPS_MET = True
 try:
     import pychromecast
-    import bottle
     import pycaption
 except Exception as e:
     traceback.print_exc()
@@ -851,7 +850,6 @@ class Gnomecast(object):
         self.subtitle_store.append(
             ["Add subtitle file...", None, self.on_new_subtitle_clicked]
         )
-        # self.subtitle_store.append(["Download...", None, self.on_download_subtitle_clicked])
         self.subtitle_combo.set_active(0)
 
     def on_drag_data_received(self, widget, drag_context, x, y, data, info, time):
@@ -1108,39 +1106,6 @@ class Gnomecast(object):
         dialog.destroy()
 
     def on_new_subtitle_clicked(self):
-        dialog = Gtk.FileChooserDialog(
-            "Please choose a subtitle file...",
-            self.win,
-            Gtk.FileChooserAction.OPEN,
-            (
-                Gtk.STOCK_CANCEL,
-                Gtk.ResponseType.CANCEL,
-                Gtk.STOCK_OPEN,
-                Gtk.ResponseType.OK,
-            ),
-        )
-
-        if self.fn:
-            dialog.set_current_folder(os.path.dirname(self.fn))
-
-        filter_py = Gtk.FileFilter()
-        filter_py.set_name("Subtitles")
-        filter_py.add_pattern("*.srt")
-        filter_py.add_pattern("*.vtt")
-        dialog.add_filter(filter_py)
-
-        response = dialog.run()
-        if response == Gtk.ResponseType.OK:
-            print("Open clicked")
-            print("File selected: " + dialog.get_filename())
-            self.select_subtitles_file(dialog.get_filename())
-        elif response == Gtk.ResponseType.CANCEL:
-            print("Cancel clicked")
-            self.subtitle_combo.set_active(0)
-
-        dialog.destroy()
-
-    def on_download_subtitle_clicked(self):
         dialog = Gtk.FileChooserDialog(
             "Please choose a subtitle file...",
             self.win,
