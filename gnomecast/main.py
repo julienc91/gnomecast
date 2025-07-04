@@ -16,12 +16,12 @@ from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread
 from .version import __version__
 from .webserver import GnomecastWebServer
+from .subtitles import convert_subtitles_to_webvtt
 
 
 DEPS_MET = True
 try:
     import pychromecast
-    import pycaption
 except Exception as e:
     traceback.print_exc()
     print(e)
@@ -47,10 +47,6 @@ Thanks! - Gnomecast
 """
     print(ERROR_MESSAGE.format(line, line))
     sys.exit(1)
-
-
-if DEPS_MET:
-    pycaption.WebVTTWriter._encode = lambda self, s: s
 
 
 AUDIO_EXTS = ("aac", "mp3", "wav")
@@ -196,14 +192,7 @@ class FileMetadata(object):
     def load_subtitles(self):
         if not self.subtitles:
             return
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            self.fn,
-            "-vn",
-            "-an",
-        ]
+        cmd = ["ffmpeg", "-y", "-i", self.fn, "-vn", "-an"]
         files = []
         for stream in self.subtitles:
             srt_fn = tempfile.mkstemp(
@@ -215,16 +204,9 @@ class FileMetadata(object):
         print(cmd)
         try:
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            for stream, srt_fn in zip(self.subtitles, files):
+            for stream, subtitles_path in zip(self.subtitles, files):
                 try:
-                    with open(srt_fn) as f:
-                        caps = f.read()
-                    # print('caps', caps)
-                    converter = pycaption.CaptionConverter()
-                    converter.read(caps, pycaption.detect_format(caps)())
-                    stream._subtitles = converter.write(pycaption.WebVTTWriter())
-                except Exception:
-                    traceback.print_exc()
+                    stream._subtitles = convert_subtitles_to_webvtt(subtitles_path)
                 finally:
                     os.remove(srt_fn)
         except subprocess.CalledProcessError as e:
@@ -1138,8 +1120,9 @@ class Gnomecast(object):
 
         dialog.destroy()
 
-    def select_subtitles_file(self, fn):
-        if not os.path.isfile(fn):
+    def select_subtitles_file(self, fn: str):
+        substitles_path = Path(fn)
+        if not substitles_path.is_file():
 
             def f():
                 dialog = Gtk.MessageDialog(
@@ -1155,24 +1138,10 @@ class Gnomecast(object):
 
             GLib.idle_add(f)
             return
-        fn = os.path.abspath(fn)
-        ext = fn.split(".")[-1]
-        display_name = os.path.basename(fn)
-        if ext == "vtt":
-            with open(fn) as f:
-                self.subtitles = f.read()
-        else:
-            with open(fn, "rb") as f:
-                caps = f.read()
-                try:
-                    caps = caps.decode()
-                except UnicodeDecodeError:
-                    caps = caps.decode("latin-1")
-            if caps.startswith("\ufeff"):  # BOM
-                caps = caps[1:]
-            converter = pycaption.CaptionConverter()
-            converter.read(caps, pycaption.detect_format(caps)())
-            self.subtitles = converter.write(pycaption.WebVTTWriter())
+
+        subtitles_path = substitles_path.resolve()
+        display_name = subtitles_path.name
+        self.subtitles = convert_subtitles_to_webvtt(subtitles_path)
         pos = len(self.subtitle_store)
         stream = StreamMetadata(None, None, title=display_name)
         stream._subtitles = self.subtitles
