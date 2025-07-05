@@ -16,8 +16,7 @@ from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread
 from .version import __version__
 from .webserver import GnomecastWebServer
-from .subtitles import convert_subtitles_to_webvtt
-
+from .subtitles import convert_subtitles_to_webvtt, extract_subtitles_from_file
 
 DEPS_MET = True
 try:
@@ -190,27 +189,12 @@ class FileMetadata(object):
             time.sleep(1)
 
     def load_subtitles(self):
-        if not self.subtitles:
-            return
-        cmd = ["ffmpeg", "-y", "-i", self.fn, "-vn", "-an"]
-        files = []
-        for stream in self.subtitles:
-            srt_fn = tempfile.mkstemp(
-                suffix=".srt", prefix="gnomecast_pid%i_subtitles_" % os.getpid()
-            )[1]
-            files.append(srt_fn)
-            cmd += ["-map", stream.index, "-codec", "srt", srt_fn]
-
-        print(cmd)
-        try:
-            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            for stream, subtitles_path in zip(self.subtitles, files):
-                try:
-                    stream._subtitles = convert_subtitles_to_webvtt(subtitles_path)
-                finally:
-                    os.remove(srt_fn)
-        except subprocess.CalledProcessError as e:
-            print("ERROR processing subtitles:", e)
+        stream_indexes = [stream.index for stream in self.subtitles]
+        subtitles = extract_subtitles_from_file(self.fn, stream_indexes)
+        if subtitles is not None:
+            for i, stream in enumerate(self.subtitles):
+                stream._subtitles = subtitles[i]
+        else:
             self.subtitles = []
 
     def __repr__(self):
