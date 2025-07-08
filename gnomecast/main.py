@@ -52,7 +52,7 @@ AUDIO_EXTS = ("aac", "mp3", "wav")
 
 
 class StreamMetadata:
-    def __init__(self, index, codec, title=None):
+    def __init__(self, index, codec, title):
         self.index = index
         self.codec = codec
         self.title = title
@@ -85,8 +85,8 @@ class AudioMetadata(StreamMetadata):
         return "%s (%s/%s)" % (self.title, self.codec, channels)
 
 
-class FileMetadata(object):
-    def __init__(self, fn, callback=None, _ffmpeg_output=None):
+class FileMetadata:
+    def __init__(self, fn, callback):
         self.fn = fn
         self.ready = False
 
@@ -96,30 +96,26 @@ class FileMetadata(object):
                 suffix=".jpg", prefix="gnomecast_pid%i_thumbnail_" % os.getpid()
             )[1]
             os.remove(thumbnail_fn)
-            self._ffmpeg_output = (
-                _ffmpeg_output
-                if _ffmpeg_output
-                else subprocess.check_output(
-                    [
-                        "ffmpeg",
-                        "-i",
-                        fn,
-                        "-f",
-                        "ffmetadata",
-                        "-",
-                        "-f",
-                        "mjpeg",
-                        "-vframes",
-                        "1",
-                        "-ss",
-                        "27",
-                        "-vf",
-                        "scale=600:-1",
-                        thumbnail_fn,
-                    ],
-                    stderr=subprocess.STDOUT,
-                ).decode()
-            )
+            self._ffmpeg_output = subprocess.check_output(
+                [
+                    "ffmpeg",
+                    "-i",
+                    fn,
+                    "-f",
+                    "ffmetadata",
+                    "-",
+                    "-f",
+                    "mjpeg",
+                    "-vframes",
+                    "1",
+                    "-ss",
+                    "27",
+                    "-vf",
+                    "scale=600:-1",
+                    thumbnail_fn,
+                ],
+                stderr=subprocess.STDOUT,
+            ).decode()
             _important_ffmpeg = []
             if os.path.isfile(thumbnail_fn):
                 self.thumbnail_fn = thumbnail_fn
@@ -141,7 +137,7 @@ class FileMetadata(object):
                         title = id[id.index("(") + 1 : id.index(")")]
                         id = id[: id.index("(")]
                     video_codec = line.split()[3]
-                    stream = StreamMetadata(id, video_codec, title=title)
+                    stream = StreamMetadata(id, video_codec, title)
                     self.video_streams.append(stream)
                 elif line.startswith("Stream") and "Audio" in line:
                     _important_ffmpeg.append(line)
@@ -168,7 +164,7 @@ class FileMetadata(object):
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
                         id = id[: id.index("(")]
-                    stream = StreamMetadata(id, None, title=title)
+                    stream = StreamMetadata(id, None, title)
                     self.subtitles.append(stream)
                 elif stream and line.startswith("title"):
                     _important_ffmpeg.append(line)
@@ -176,8 +172,7 @@ class FileMetadata(object):
                 elif line.startswith("Output"):
                     break
             self._important_ffmpeg = "\n".join(_important_ffmpeg)
-            if not _ffmpeg_output:
-                self.load_subtitles()
+            self.load_subtitles()
             self.ready = True
             if callback:
                 callback(self)
@@ -214,7 +209,7 @@ class FileMetadata(object):
         return "\n".join(fields)
 
 
-class Transcoder(object):
+class Transcoder:
     def __init__(
         self,
         cast,
@@ -224,9 +219,6 @@ class Transcoder(object):
         done_callback,
         error_callback,
         prev_transcoder=None,
-        force_audio=False,
-        force_video=False,
-        fake=False,
     ):
         self.fmd = fmd
         self.video_stream = video_stream
@@ -241,12 +233,9 @@ class Transcoder(object):
 
         print("Transcoder", fn)
         transcode_container = fmd.container not in ("mp4", "aac", "mp3", "wav")
-        self.transcode_video = force_video or not self.can_play_video_codec(
-            video_stream.codec
-        )
+        self.transcode_video = not self.can_play_video_codec(video_stream.codec)
         self.transcode_audio = (
-            force_audio
-            or fmd.container not in AUDIO_EXTS
+            fmd.container not in AUDIO_EXTS
             or not self.can_play_audio_stream(self.audio_stream)
         )
         self.transcode = (
@@ -300,18 +289,13 @@ class Transcoder(object):
             ]  # '-movflags', 'faststart'
             self.transcode_cmd += [self.trans_fn]
             print(" ".join(["'%s'" % s if " " in s else s for s in self.transcode_cmd]))
-            if fake:
-                self.p = None
-                self.monitor()
-            else:
-                print("---------------------")
-                print(" starting ffmpeg at:")
-                print("---------------------")
-                traceback.print_stack()
-                self.p = subprocess.Popen(
-                    self.transcode_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-                )
-                start_thread(self.monitor, daemon=True)
+            print("---------------------")
+            print(" starting ffmpeg at:")
+            print("---------------------")
+            self.p = subprocess.Popen(
+                self.transcode_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            start_thread(self.monitor, daemon=True)
         else:
             self.done = True
             self.done_callback()
@@ -398,7 +382,7 @@ class Transcoder(object):
         self.destroy()
 
 
-class Gnomecast(object):
+class Gnomecast:
     def __init__(self):
         self.webserver = None
         self.cast = None
@@ -1127,7 +1111,7 @@ class Gnomecast(object):
         display_name = subtitles_path.name
         self.subtitles = convert_subtitles_to_webvtt(subtitles_path)
         pos = len(self.subtitle_store)
-        stream = StreamMetadata(None, None, title=display_name)
+        stream = StreamMetadata(None, None, display_name)
         stream._subtitles = self.subtitles
         self.subtitle_store.append([display_name, stream, None])
         self.subtitle_combo.set_active(pos)
