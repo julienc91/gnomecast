@@ -11,7 +11,7 @@ import urllib
 from pathlib import Path
 
 from .devices import get_device, Device
-from .ffmpeg import parse_ffmpeg_time
+from .ffmpeg import parse_ffmpeg_time, check_ffmpeg_installed
 from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread
 from .version import __version__
@@ -417,14 +417,8 @@ class Gnomecast:
 
     def check_ffmpeg(self):
         time.sleep(1)
-        ffmpeg_available = True
-        print("check_ffmpeg")
-        try:
-            print(subprocess.check_output(["which", "ffmpeg"]))
-        except Exception as e:
-            print(e, e.output)
-            ffmpeg_available = False
-        if not ffmpeg_available:
+
+        if not check_ffmpeg_installed():
 
             def f():
                 dialog = Gtk.MessageDialog(
@@ -435,7 +429,7 @@ class Gnomecast:
                     "FFMPEG not Found",
                 )
                 dialog.format_secondary_text(
-                    "Could not find ffmpeg.  Please run 'sudo apt-get install ffmpeg'."
+                    "Could not find ffmpeg. Please run 'sudo apt-get install ffmpeg'."
                 )
                 dialog.run()
                 dialog.destroy()
