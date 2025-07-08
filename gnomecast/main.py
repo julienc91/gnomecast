@@ -11,7 +11,7 @@ import urllib
 from pathlib import Path
 
 from .devices import get_device, Device
-from .ffmpeg import parse_ffmpeg_time, check_ffmpeg_installed
+from .ffmpeg import parse_ffmpeg_time, check_ffmpeg_installed, extract_thumbnail
 from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread
 from .version import __version__
@@ -91,34 +91,12 @@ class FileMetadata:
         self.ready = False
 
         def parse():
-            self.thumbnail_fn = None
-            thumbnail_fn = tempfile.mkstemp(
-                suffix=".jpg", prefix="gnomecast_pid%i_thumbnail_" % os.getpid()
-            )[1]
-            os.remove(thumbnail_fn)
+            self.thumbnail_fn = str(extract_thumbnail(fn))
             self._ffmpeg_output = subprocess.check_output(
-                [
-                    "ffmpeg",
-                    "-i",
-                    fn,
-                    "-f",
-                    "ffmetadata",
-                    "-",
-                    "-f",
-                    "mjpeg",
-                    "-vframes",
-                    "1",
-                    "-ss",
-                    "27",
-                    "-vf",
-                    "scale=600:-1",
-                    thumbnail_fn,
-                ],
+                ["ffmpeg", "-i", fn, "-f", "ffmetadata", "-"],
                 stderr=subprocess.STDOUT,
             ).decode()
             _important_ffmpeg = []
-            if os.path.isfile(thumbnail_fn):
-                self.thumbnail_fn = thumbnail_fn
             output = self._ffmpeg_output.split("\n")
             self.container = fn.lower().split(".")[-1]
             self.video_streams = []

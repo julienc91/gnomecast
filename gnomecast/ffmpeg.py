@@ -1,4 +1,9 @@
+import os
 import subprocess
+import tempfile
+from pathlib import Path
+
+from gnomecast.utils import get_tempfile_prefix
 
 
 def parse_ffmpeg_time(time_s: str) -> float:
@@ -12,3 +17,22 @@ def check_ffmpeg_installed() -> bool:
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
+
+def extract_thumbnail(file_path: Path, offset: int = 30) -> Path:
+    _, output_path = tempfile.mkstemp(
+        prefix=f"{get_tempfile_prefix()}_thumbnail_", suffix=".jpg"
+    )
+    cmd = [
+        "ffmpeg",
+        "-y",
+        *("-v", "0"),  # Set log level to quiet
+        *("-i", file_path),
+        *("-f", "mjpeg"),
+        *("-vframes", "1"),
+        *("-ss", str(offset)),
+        *("-vf", "scale=600:-1"),
+        output_path,
+    ]
+    subprocess.run(cmd, check=True)
+    return Path(output_path)

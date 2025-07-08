@@ -59,6 +59,11 @@ def is_pid_running(pid: int) -> bool:
         return True
 
 
+def get_tempfile_prefix() -> str:
+    pid = os.getpid()
+    return f"gnomecast_{pid}_"
+
+
 def start_thread(
     target: Callable,
     *,
