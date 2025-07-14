@@ -18,7 +18,7 @@ from .ffmpeg import (
     get_media_duration,
 )
 from .screensaver import ScreenSaverInhibitor
-from .utils import throttle, is_pid_running, start_thread
+from .utils import throttle, is_pid_running, start_thread, humanize_seconds
 from .version import __version__
 from .webserver import GnomecastWebServer
 from .subtitles import convert_subtitles_to_webvtt, extract_subtitles_from_file
@@ -719,7 +719,7 @@ class Gnomecast:
         self.scrubber.set_digits(0)
 
         def f(scale, s):
-            notes = [self.humanize_seconds(s)]
+            notes = [humanize_seconds(s)]
             return "".join(notes)
 
         self.scrubber.connect("format-value", f)
@@ -903,18 +903,6 @@ class Gnomecast:
         print("scrubber_moved", seconds)
         self.seeking = True
         self.cast.media_controller.seek(seconds)
-
-    def humanize_seconds(self, s):
-        s = int(s)
-        hours = s // (60 * 60)
-        minutes = (s // 60) % 60
-        seconds = s % 60
-        if hours:
-            return "%ih %im %is" % (hours, minutes, seconds)
-        if minutes:
-            return "%im %is" % (minutes, seconds)
-        else:
-            return "%is" % (seconds)
 
     def stop_clicked(self, widget):
         if not self.cast:
@@ -1254,7 +1242,7 @@ class Gnomecast:
         for row in self.files_store:
             if row[1] == fn:
                 row[2] = duration
-                row[3] = self.humanize_seconds(duration)
+                row[3] = humanize_seconds(duration)
 
     def get_fmd(self):
         for row in self.files_store:

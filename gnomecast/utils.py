@@ -83,3 +83,16 @@ def start_thread(
             target=target, args=args, kwargs=kwargs, daemon=daemon
         )
     thread.start()
+
+
+def humanize_seconds(seconds: float) -> str:
+    seconds = int(seconds)
+    hours = seconds // 3600
+    minutes = (seconds // 60) % 60
+    seconds = seconds % 60
+    if hours:
+        return f"{hours}h {minutes}m {seconds}s"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    else:
+        return f"{seconds}s"
