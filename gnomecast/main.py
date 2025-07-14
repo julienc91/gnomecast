@@ -17,6 +17,7 @@ from .ffmpeg import (
     extract_thumbnail,
     get_media_duration,
 )
+from .gui import show_error_dialog
 from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread, humanize_seconds
 from .version import __version__
@@ -402,24 +403,13 @@ class Gnomecast:
         time.sleep(1)
 
         if not check_ffmpeg_installed():
-
-            def f():
-                dialog = Gtk.MessageDialog(
-                    self.win,
-                    0,
-                    Gtk.MessageType.ERROR,
-                    Gtk.ButtonsType.CLOSE,
-                    "FFMPEG not Found",
-                )
-                dialog.format_secondary_text(
-                    "Could not find ffmpeg. Please run 'sudo apt-get install ffmpeg'."
-                )
-                dialog.run()
-                dialog.destroy()
-                # TODO: there's a weird pause here closing the dialog.  why?
-                sys.exit(1)
-
-            GLib.idle_add(f)
+            show_error_dialog(
+                self.win,
+                "fmpeg not found",
+                "Could not find ffmpeg. Please run 'sudo apt-get install ffmpeg'.",
+            )
+            # TODO: there's a weird pause here closing the dialog.  why?
+            sys.exit(1)
 
     def start_server(self):
         self.webserver = GnomecastWebServer(
@@ -504,44 +494,30 @@ class Gnomecast:
         start_thread(self.load_casts, kwargs={"device": device})
 
     def load_casts(self, device=None):
-        chromecasts = pychromecast.get_chromecasts()
-        # workaround for https://github.com/home-assistant-libs/pychromecast/issues/398
-        if isinstance(chromecasts, tuple) and len(chromecasts) == 2:
-            chromecasts = chromecasts[0]
-
-        def f():
-            self.cast_store.clear()
-            self.cast_store.append([None, "Select a cast device..."])
-            self.cast_store.append([-1, "Add a non-local Chromecast..."])
-            for cc in chromecasts:
-                friendly_name = cc.cast_info.friendly_name
-                if cc.cast_type != "cast":
-                    friendly_name = "%s (%s)" % (friendly_name, cc.cast_type)
-                self.cast_store.append([cc, friendly_name])
-            if device:
-                found = False
-                for i, cc in enumerate(chromecasts):
-                    if device == cc.cast_info.friendly_name:
-                        self.cast_combo.set_active(i + 1)
-                        found = True
-                if not found:
-                    self.cast_combo.set_active(0)
-                    dialog = Gtk.MessageDialog(
-                        self.win,
-                        0,
-                        Gtk.MessageType.ERROR,
-                        Gtk.ButtonsType.CLOSE,
-                        "Chromecast Not Found",
-                    )
-                    dialog.format_secondary_text(
-                        "The Chromecast '%s' wasn't found." % device
-                    )
-                    dialog.run()
-                    dialog.destroy()
-            else:
-                self.cast_combo.set_active(2 if len(chromecasts) == 1 else 0)
-
-        GLib.idle_add(f)
+        chromecasts, _ = pychromecast.get_chromecasts()
+        self.cast_store.clear()
+        self.cast_store.append([None, "Select a cast device..."])
+        self.cast_store.append([-1, "Add a non-local Chromecast..."])
+        for cc in chromecasts:
+            friendly_name = cc.cast_info.friendly_name
+            if cc.cast_type != "cast":
+                friendly_name = "%s (%s)" % (friendly_name, cc.cast_type)
+            self.cast_store.append([cc, friendly_name])
+        if device:
+            found = False
+            for i, cc in enumerate(chromecasts):
+                if device == cc.cast_info.friendly_name:
+                    self.cast_combo.set_active(i + 1)
+                    found = True
+            if not found:
+                self.cast_combo.set_active(0)
+                show_error_dialog(
+                    self.win,
+                    "Chromecast not found",
+                    f"The Chromecast {device} wasn't found.",
+                )
+        else:
+            self.cast_combo.set_active(2 if len(chromecasts) == 1 else 0)
 
     def update_media_button_states(self):
         mc = self.cast.media_controller if self.cast else None
@@ -1056,20 +1032,9 @@ class Gnomecast:
     def select_subtitles_file(self, fn: str):
         substitles_path = Path(fn)
         if not substitles_path.is_file():
-
-            def f():
-                dialog = Gtk.MessageDialog(
-                    self.win,
-                    0,
-                    Gtk.MessageType.ERROR,
-                    Gtk.ButtonsType.CLOSE,
-                    "File Not Found",
-                )
-                dialog.format_secondary_text("Could not find subtitles file: %s" % fn)
-                dialog.run()
-                dialog.destroy()
-
-            GLib.idle_add(f)
+            show_error_dialog(
+                self.win, "File not found", f"Could not find subtitles file: {fn}."
+            )
             return
 
         subtitles_path = substitles_path.resolve()
@@ -1104,20 +1069,9 @@ class Gnomecast:
     def select_file(self, fn):
         self.unselect_file()
         if not os.path.isfile(fn):
-
-            def f():
-                dialog = Gtk.MessageDialog(
-                    self.win,
-                    0,
-                    Gtk.MessageType.ERROR,
-                    Gtk.ButtonsType.CLOSE,
-                    "File Not Found",
-                )
-                dialog.format_secondary_text("Could not find media file: %s" % fn)
-                dialog.run()
-                dialog.destroy()
-
-            GLib.idle_add(f)
+            show_error_dialog(
+                self.win, "File not found", f"Could not find media file: {fn}."
+            )
             return
         fn = os.path.abspath(fn)
         self.thumbnail_image.set_from_pixbuf(self.get_logo_pixbuf())
