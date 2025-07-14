@@ -11,7 +11,12 @@ import urllib
 from pathlib import Path
 
 from .devices import get_device, Device
-from .ffmpeg import parse_ffmpeg_time, check_ffmpeg_installed, extract_thumbnail
+from .ffmpeg import (
+    parse_ffmpeg_time,
+    check_ffmpeg_installed,
+    extract_thumbnail,
+    get_media_duration,
+)
 from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread
 from .version import __version__
@@ -874,7 +879,7 @@ class Gnomecast:
             self.files_store.append(
                 [display, fn, None, "...", None, None, None, None, fmd]
             )
-            start_thread(self.get_info, args=[fn])
+            start_thread(self.get_duration, args=[fn])
         self.scrolled_window.set_visible(True)
         if len(files) and self.fn is None:
             self.select_file(files[0])
@@ -1241,19 +1246,15 @@ class Gnomecast:
             ):
                 transcode_next = True
 
-    def get_info(self, fn):
-        cmd = ["ffprobe", "-i", fn]
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        for line in output.decode().split("\n"):
-            line = line.strip()
-            if line.startswith("Duration:"):
-                duration = parse_ffmpeg_time(line.split()[1].strip(","))
-                if fn == self.fn:
-                    self.duration = duration
-                for row in self.files_store:
-                    if row[1] == fn:
-                        row[2] = duration
-                        row[3] = self.humanize_seconds(duration)
+    def get_duration(self, fn: str) -> None:
+        duration = get_media_duration(fn)
+        if fn == self.fn:
+            self.duration = duration
+
+        for row in self.files_store:
+            if row[1] == fn:
+                row[2] = duration
+                row[3] = self.humanize_seconds(duration)
 
     def get_fmd(self):
         for row in self.files_store:
@@ -1312,7 +1313,6 @@ class Gnomecast:
     def select_cast(self, cast):
         self.cast = cast
         if cast:
-            #      cast.media_controller.app_id = 'FF0F6B72'
             self.last_known_volume_level = cast.media_controller.status.volume_level
             self.volume_button.set_value(cast.media_controller.status.volume_level)
         self.last_known_player_state = None

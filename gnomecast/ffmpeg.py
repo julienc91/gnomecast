@@ -36,3 +36,15 @@ def extract_thumbnail(file_path: Path, offset: int = 30) -> Path:
     ]
     subprocess.run(cmd, check=True)
     return Path(output_path)
+
+
+def get_media_duration(file_path: Path) -> float:
+    cmd = [
+        "ffprobe",
+        *("-v", "error"),
+        *("-show_entries", "format=duration"),
+        *("-of", "default=noprint_wrappers=1:nokey=1"),
+        str(file_path),
+    ]
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    return float(result.stdout.strip())
