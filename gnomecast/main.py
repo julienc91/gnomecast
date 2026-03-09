@@ -495,29 +495,33 @@ class Gnomecast:
 
     def load_casts(self, device=None):
         chromecasts, _ = pychromecast.get_chromecasts()
-        self.cast_store.clear()
-        self.cast_store.append([None, "Select a cast device..."])
-        self.cast_store.append([-1, "Add a non-local Chromecast..."])
-        for cc in chromecasts:
-            friendly_name = cc.cast_info.friendly_name
-            if cc.cast_type != "cast":
-                friendly_name = "%s (%s)" % (friendly_name, cc.cast_type)
-            self.cast_store.append([cc, friendly_name])
-        if device:
-            found = False
-            for i, cc in enumerate(chromecasts):
-                if device == cc.cast_info.friendly_name:
-                    self.cast_combo.set_active(i + 1)
-                    found = True
-            if not found:
-                self.cast_combo.set_active(0)
-                show_error_dialog(
-                    self.win,
-                    "Chromecast not found",
-                    f"The Chromecast {device} wasn't found.",
-                )
-        else:
-            self.cast_combo.set_active(2 if len(chromecasts) == 1 else 0)
+
+        def update_ui():
+            self.cast_store.clear()
+            self.cast_store.append([None, "Select a cast device..."])
+            self.cast_store.append([-1, "Add a non-local Chromecast..."])
+            for cc in chromecasts:
+                friendly_name = cc.cast_info.friendly_name
+                if cc.cast_type != "cast":
+                    friendly_name = "%s (%s)" % (friendly_name, cc.cast_type)
+                self.cast_store.append([cc, friendly_name])
+            if device:
+                found = False
+                for i, cc in enumerate(chromecasts):
+                    if device == cc.cast_info.friendly_name:
+                        self.cast_combo.set_active(i + 1)
+                        found = True
+                if not found:
+                    self.cast_combo.set_active(0)
+                    show_error_dialog(
+                        self.win,
+                        "Chromecast not found",
+                        f"The Chromecast {device} wasn't found.",
+                    )
+            else:
+                self.cast_combo.set_active(2 if len(chromecasts) == 1 else 0)
+
+        GLib.idle_add(update_ui)
 
     def update_media_button_states(self):
         mc = self.cast.media_controller if self.cast else None
