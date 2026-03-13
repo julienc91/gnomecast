@@ -6,7 +6,9 @@ from pathlib import Path
 from gnomecast.utils import get_tempfile_prefix
 
 
-def parse_ffmpeg_time(time_s: str) -> float:
+def parse_ffmpeg_time(time_s: str) -> float | None:
+    if time_s == "N/A":
+        return None
     hours, minutes, seconds = (float(s) for s in time_s.split(":"))
     return hours * 60 * 60 + minutes * 60 + seconds
 

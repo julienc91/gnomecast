@@ -343,7 +343,9 @@ class Transcoder:
                     self.progress_bytes = (
                         int(d.get("size", "0kb").lower().rstrip("kib")) * 1024
                     )
-                    self.progress_seconds = parse_ffmpeg_time(d.get("time", "00:00:00"))
+                    progress = parse_ffmpeg_time(d.get("time", "00:00:00"))
+                    if progress is not None:
+                        self.progress_seconds = progress
                     line = b""
         if self.p:
             self.p.stdout.close()
