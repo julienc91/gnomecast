@@ -152,7 +152,7 @@ class FileMetadata:
                     self.subtitles.append(stream)
                 elif stream and line.startswith("title"):
                     _important_ffmpeg.append(line)
-                    stream.title = line.split()[2]
+                    stream.title = line.split(":", 1)[1].strip()
                 elif line.startswith("Output"):
                     break
             self._important_ffmpeg = "\n".join(_important_ffmpeg)
