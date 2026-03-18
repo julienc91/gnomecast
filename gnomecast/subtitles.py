@@ -18,6 +18,27 @@ def convert_subtitles_to_webvtt(subtitles_path: Path) -> str:
     return converter.write(pycaption.WebVTTWriter())
 
 
+def extract_single_subtitle(input_path: str, index: str) -> str | None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_file = Path(temp_dir) / "subtitle.vtt"
+        cmd = [
+            "ffmpeg",
+            "-y",
+            *("-v", "0"),
+            *("-i", input_path),
+            *("-vn", "-an"),
+            "-map", index,
+            "-f", "webvtt", "-scodec", "webvtt",
+            output_file,
+        ]
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error extracting subtitle {index}: {e}")
+            return None
+        return output_file.read_text()
+
+
 def extract_subtitles_from_file(
     input_path: str, indexes: list[str]
 ) -> list[str] | None:

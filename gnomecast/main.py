@@ -28,7 +28,7 @@ from .cache import (
 )
 from .version import __version__
 from .webserver import GnomecastWebServer
-from .subtitles import convert_subtitles_to_webvtt, extract_subtitles_from_file
+from .subtitles import convert_subtitles_to_webvtt, extract_single_subtitle
 
 DEPS_MET = True
 try:
@@ -174,13 +174,8 @@ class FileMetadata:
             time.sleep(1)
 
     def load_subtitles(self):
-        stream_indexes = [stream.index for stream in self.subtitles]
-        subtitles = extract_subtitles_from_file(self.fn, stream_indexes)
-        if subtitles is not None:
-            for i, stream in enumerate(self.subtitles):
-                stream._subtitles = subtitles[i]
-        else:
-            self.subtitles = []
+        for stream in self.subtitles:
+            stream._subtitles = None
 
     def __repr__(self):
         fields = [
@@ -1455,6 +1450,9 @@ class Gnomecast:
             if callback:
                 callback()
             else:
+                if stream and stream._subtitles is None:
+                    fmd = self.get_fmd()
+                    stream._subtitles = extract_single_subtitle(fmd.fn, stream.index)
                 self.subtitles = stream._subtitles if stream else None
                 mc = self.cast.media_controller if self.cast else None
                 if mc and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED"):
