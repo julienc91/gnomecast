@@ -20,6 +20,12 @@ from .ffmpeg import (
 from .gui import show_error_dialog
 from .screensaver import ScreenSaverInhibitor
 from .utils import throttle, is_pid_running, start_thread, humanize_seconds
+from .cache import (
+    TRANSCODE_CACHE_MP4,
+    check_transcode_cache,
+    delete_transcode_cache,
+    write_transcode_cache,
+)
 from .version import __version__
 from .webserver import GnomecastWebServer
 from .subtitles import convert_subtitles_to_webvtt, extract_subtitles_from_file
@@ -211,6 +217,7 @@ class Transcoder:
         self.cast = cast
         self.source_fn = fn
         self.p = None
+        self.using_cache = False
 
         if prev_transcoder:
             prev_transcoder.destroy()
@@ -239,13 +246,6 @@ class Transcoder:
         )
         if self.transcode:
             self.done = False
-            dir = "/var/tmp" if os.path.isdir("/var/tmp") else None
-            self.trans_fn = tempfile.mkstemp(
-                suffix=".mp4",
-                prefix="gnomecast_pid%i_transcode_" % os.getpid(),
-                dir=dir,
-            )[1]
-            os.remove(self.trans_fn)
 
             transcode_audio_to = (
                 "ac3"
@@ -253,6 +253,7 @@ class Transcoder:
                 else "mp3"
             )
 
+            # Build the ffmpeg command (without output path) for cache comparison
             self.transcode_cmd = [
                 "ffmpeg",
                 "-i",
@@ -271,6 +272,24 @@ class Transcoder:
                 "-c:v",
                 "h264" if self.transcode_video else "copy",
             ]  # '-movflags', 'faststart'
+
+            # Check transcode cache before starting ffmpeg
+            if check_transcode_cache(self.source_fn, self.transcode_cmd):
+                print("Using cached transcode:", TRANSCODE_CACHE_MP4)
+                self.trans_fn = TRANSCODE_CACHE_MP4
+                self.using_cache = True
+                self.done = True
+                self.done_callback()
+                return
+
+            dir = "/var/tmp" if os.path.isdir("/var/tmp") else None
+            self.trans_fn = tempfile.mkstemp(
+                suffix=".mp4",
+                prefix="gnomecast_pid%i_transcode_" % os.getpid(),
+                dir=dir,
+            )[1]
+            os.remove(self.trans_fn)
+
             self.transcode_cmd += [self.trans_fn]
             print(" ".join(["'%s'" % s if " " in s else s for s in self.transcode_cmd]))
             print("---------------------")
@@ -355,13 +374,29 @@ class Transcoder:
                 self.error_callback(total_output.decode())
                 return
         self.done = True
+        # Save to transcode cache
+        if self.trans_fn and os.path.isfile(self.trans_fn):
+            delete_transcode_cache()
+            try:
+                os.rename(self.trans_fn, TRANSCODE_CACHE_MP4)
+                self.trans_fn = TRANSCODE_CACHE_MP4
+                self.using_cache = True
+                # Save cache metadata (command without output path)
+                cache_cmd = self.transcode_cmd[:-1]
+                stat = os.stat(self.source_fn)
+                write_transcode_cache(
+                    self.source_fn, stat.st_mtime, stat.st_size, cache_cmd
+                )
+                print("Transcode cached:", TRANSCODE_CACHE_MP4)
+            except OSError as e:
+                print("Failed to cache transcode:", e)
         if self.done_callback:
             self.done_callback(did_transcode=True)
 
     def destroy(self):
         if self.p and self.p.poll() is None:
             self.p.terminate()
-        if self.trans_fn and os.path.isfile(self.trans_fn):
+        if self.trans_fn and os.path.isfile(self.trans_fn) and not self.using_cache:
             os.remove(self.trans_fn)
 
     def __del__(self):
@@ -1482,6 +1517,8 @@ def delete_old_transcodes():
     for tmpdir in ["/tmp", "/var/tmp"]:
         for fn in os.listdir(tmpdir):
             if not fn.startswith("gnomecast_"):
+                continue
+            if fn.startswith("gnomecast_transcode_cache"):
                 continue
             fn = os.path.join(tmpdir, fn)
             match = re.search(r"gnomecast_pid(\d+)_", fn)
