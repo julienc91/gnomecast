@@ -974,6 +974,7 @@ class Gnomecast:
         ):
             self.last_fn_played = self.fn
             cast.wait()
+            cast.quit_app()
             mc = cast.media_controller
             kwargs = {}
             if self.subtitles:
