@@ -121,7 +121,7 @@ class FileMetadata:
                     _important_ffmpeg.append(line)
                 if line.startswith("Stream") and "Video" in line:
                     _important_ffmpeg.append(line)
-                    id = line.split()[1].strip("#").strip(":")
+                    id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
                     title = "Video #%i" % (len(self.video_streams) + 1)
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
@@ -132,7 +132,7 @@ class FileMetadata:
                 elif line.startswith("Stream") and "Audio" in line:
                     _important_ffmpeg.append(line)
                     title = "Audio #%i" % (len(self.audio_streams) + 1)
-                    id = line.split()[1].strip("#").strip(":")
+                    id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
                         id = id[: id.index("(")]
@@ -149,7 +149,7 @@ class FileMetadata:
                     self.audio_streams.append(stream)
                 elif line.startswith("Stream") and "Subtitle" in line:
                     _important_ffmpeg.append(line)
-                    id = line.split()[1].strip("#").strip(":")
+                    id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
                     print(line, id)
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
