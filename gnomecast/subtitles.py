@@ -11,7 +11,7 @@ def convert_subtitles_to_webvtt(subtitles_path: Path) -> str:
     except UnicodeDecodeError:
         subtitles = subtitles_bytes.decode("latin-1")
 
-    subtitles.removeprefix("\ufeff")  # Remove BOM if present
+    subtitles = subtitles.removeprefix("\ufeff")  # Remove BOM if present
 
     converter = pycaption.CaptionConverter()
     converter.read(subtitles, pycaption.detect_format(subtitles)())
