@@ -8,6 +8,7 @@ import threading
 import time
 import traceback
 import urllib
+from datetime import datetime
 from pathlib import Path
 
 from .devices import get_device, Device
@@ -413,6 +414,7 @@ class Gnomecast:
         self.duration = None
         self.subtitles = None
         self.seeking = False
+        self.seek_confirmed_after = None
         self.last_known_volume_level = None
         self.screen_saver_inhibitor = ScreenSaverInhibitor()
         self.autoplay = False
@@ -475,16 +477,19 @@ class Gnomecast:
             time.sleep(1)
             if not self.cast:
                 continue
-            seeking = self.seeking
             cast = self.cast
             mc = cast.media_controller
+            if (
+                self.seeking
+                and self.seek_confirmed_after is not None
+                and mc.status.last_updated is not None
+                and mc.status.last_updated > self.seek_confirmed_after
+            ):
+                # Confirms via last_updated instead of a BUFFERING->PLAYING
+                # transition, which short seeks often skip entirely.
+                self.seeking = False
+            seeking = self.seeking
             if mc.status.player_state != self.last_known_player_state:
-                if (
-                    mc.status.player_state == "PLAYING"
-                    and self.last_known_player_state == "BUFFERING"
-                    and seeking
-                ):
-                    self.seeking = False
                 if (
                     mc.status.player_state == "IDLE"
                     and self.last_known_player_state == "PLAYING"
@@ -914,6 +919,7 @@ class Gnomecast:
     def scrubber_moved(self, scale, scroll_type, seconds):
         print("scrubber_moved", seconds)
         self.seeking = True
+        self.seek_confirmed_after = datetime.utcnow()
         self.cast.media_controller.seek(seconds)
 
     def stop_clicked(self, widget):
@@ -958,6 +964,7 @@ class Gnomecast:
         self.cast.media_controller.status.current_time = seconds
         self.scrubber_adj.set_value(seconds)
         self.seeking = True
+        self.seek_confirmed_after = datetime.utcnow()
         self.cast.media_controller.seek(seconds)
 
     def play_clicked(self, widget):
