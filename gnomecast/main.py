@@ -6,6 +6,7 @@ import threading
 import time
 import traceback
 import urllib
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -515,7 +516,7 @@ class Gnomecast:
         if thumbnail_fn and os.path.isfile(thumbnail_fn):
             self.thumbnail_image.set_from_file(thumbnail_fn)
         if self.cast:
-            self.cast.media_controller.stop()
+            self._try_cast_command(self.cast.media_controller.stop)
 
         def f():
             self.win.resize(1, 1)
@@ -609,7 +610,7 @@ class Gnomecast:
     def stop_clicked(self, widget):
         if not self.cast:
             return
-        self.cast.media_controller.stop()
+        self._try_cast_command(self.cast.media_controller.stop)
 
     def get_logo_pixbuf(self, width=200, color=None):
         svg = (Path(__file__) / ".." / "assets" / "gnomecast.svg").resolve().read_text()
@@ -665,7 +666,7 @@ class Gnomecast:
         ):
             self.last_fn_played = self.fn
             cast.wait()
-            cast.quit_app()
+            self._try_cast_command(cast.quit_app)
             mc = cast.media_controller
             kwargs = {}
             if self.subtitles:
@@ -775,6 +776,12 @@ class Gnomecast:
         self.subtitle_store.append([display_name, stream, None])
         self.subtitle_combo.set_active(pos)
 
+    def _try_cast_command(self, command, *args):
+        try:
+            command(*args)
+        except pychromecast.error.PyChromecastError as e:
+            print("cast command failed (ignored):", e)
+
     def unselect_file(self):
         self.thumbnail_image.set_from_pixbuf(self.get_logo_pixbuf())
         self.fn = None
@@ -784,7 +791,7 @@ class Gnomecast:
         self.transcoder = None
         self.duration = None
         if self.cast:
-            self.cast.media_controller.stop()
+            self._try_cast_command(self.cast.media_controller.stop)
 
         def f():
             self.scrubber_adj.set_value(0)
@@ -808,7 +815,7 @@ class Gnomecast:
         self.stream_store.clear()
         self.subtitle_store.clear()
         if self.cast:
-            self.cast.media_controller.stop()
+            self._try_cast_command(self.cast.media_controller.stop)
 
         def f():
             self.scrubber_adj.set_value(0)
@@ -1106,7 +1113,9 @@ class Gnomecast:
         if (response == Gtk.ResponseType.OK) and (text != ""):
             print(text)
             try:
-                cast = pychromecast.Chromecast(text)
+                cast = pychromecast.get_chromecast_from_host(
+                    (text, 8009, uuid.uuid4(), None, text)
+                )
                 self.cast_store.append([cast, text])
                 self.cast_combo.set_active(len(self.cast_store) - 1)
             except pychromecast.error.ChromecastConnectionError:
