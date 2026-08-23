@@ -222,6 +222,7 @@ class Gnomecast:
             )
         )
         self.volume_button.set_sensitive(bool(self.cast))
+        self.speed_button.set_sensitive(bool(self.cast))
         self.stop_button.set_sensitive(
             bool(
                 self.transcoder
@@ -425,6 +426,19 @@ class Gnomecast:
         self.volume_button.connect("value-changed", self.volume_moved)
         self.volume_button.set_sensitive(False)
         hbox.pack_start(self.volume_button, True, False, 0)
+        speed_label = Gtk.Label(label="Speed:")
+        speed_label.set_tooltip_text("Playback speed")
+        hbox.pack_start(speed_label, False, False, 0)
+        self.speed_button = Gtk.SpinButton()
+        self.speed_button.set_adjustment(
+            Gtk.Adjustment(1.0, 0.5, 2.0, 0.05, 0.25, 0)
+        )
+        self.speed_button.set_digits(2)
+        self.speed_button.set_width_chars(5)
+        self.speed_button.set_tooltip_text("Playback speed")
+        self.speed_button.connect("value-changed", self.speed_moved)
+        self.speed_button.set_sensitive(False)
+        hbox.pack_start(self.speed_button, True, False, 0)
         vbox.pack_start(hbox, False, False, 0)
 
         cast_combo.connect("changed", self.on_cast_combo_changed)
@@ -565,6 +579,26 @@ class Gnomecast:
             self.cast.set_volume(volume)
             print("setting volume", volume)
 
+    @throttle(seconds=1)
+    def speed_moved(self, spin_button):
+        rate = spin_button.get_adjustment().get_value()
+        self.set_playback_rate(rate)
+
+    def set_playback_rate(self, rate):
+        if not self.cast:
+            return
+        mc = self.cast.media_controller
+        if mc.status is None or mc.status.media_session_id is None:
+            return
+        mc.send_message(
+            {
+                "type": "SET_PLAYBACK_RATE",
+                "mediaSessionId": mc.status.media_session_id,
+                "playbackRate": rate,
+            },
+            inc_session_id=True,
+        )
+
     @throttle(seconds=2)
     def scrubber_moved(self, scale, scroll_type, seconds):
         print("scrubber_moved", seconds)
@@ -640,6 +674,7 @@ class Gnomecast:
             current_time = self.scrubber_adj.get_value()
             if current_time:
                 kwargs["current_time"] = current_time
+            self.speed_button.set_value(1.0)
             ext = self.fn.split(".")[-1]
             ext = "".join(ch for ch in ext if ch.isalnum()).lower()
             mc.play_media(
