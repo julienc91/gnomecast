@@ -23,7 +23,7 @@ class GnomecastWebServer:
     def _setup_routes(self) -> None:
         app = self.app
 
-        @app.route("/subtitles.vtt")
+        @app.route("/subtitles.vtt")  # ty: ignore[dynamic-function-decorator-return]
         def subtitles():
             response = bottle.response
             response.headers["Access-Control-Allow-Origin"] = "*"
@@ -32,7 +32,7 @@ class GnomecastWebServer:
             response.headers["Content-Type"] = "text/vtt"
             return self.get_subtitles()
 
-        @app.get("/media/<id>.<ext>")
+        @app.get("/media/<id>.<ext>")  # ty: ignore[dynamic-function-decorator-return]
         def video(id, ext):
             print(list(bottle.request.headers.items()))
             ranges = list(

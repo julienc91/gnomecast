@@ -164,6 +164,7 @@ class Transcoder:
         r = re.compile(r"=\s+")
         total_output = b""
         while self.p:
+            assert self.p.stdout is not None
             byte = self.p.stdout.read(1)
             total_output += byte
             if byte == b"" and self.p.poll() is not None:
@@ -185,6 +186,7 @@ class Transcoder:
                         self.progress_seconds = progress
                     line = b""
         if self.p:
+            assert self.p.stdout is not None
             self.p.stdout.close()
             if self.p.returncode:
                 print("--== transcode error ==--")

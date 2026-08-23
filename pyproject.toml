@@ -17,6 +17,7 @@ dependencies = [
     "pycaption~=2.3.8",
     "pychromecast~=14.0.10",
     "pygobject~=3.56.3",
+    "typing-extensions>=4.12",
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -39,5 +40,19 @@ gnomecast = "gnomecast:main"
 
 [dependency-groups]
 dev = [
+    "pygobject-stubs>=2.17.0",
     "ruff>=0.11.13",
+    "ty>=0.0.74",
 ]
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.src]
+# test_gnomecast.py predates the module split into main.py/metadata.py/etc.
+# and calls an API that no longer exists; it's already broken independent
+# of type checking, so it's excluded here rather than rewritten.
+exclude = ["tests"]
+
+[tool.uv]
+config-settings-package = { pygobject-stubs = { config = "Gtk3,Gdk3" } }

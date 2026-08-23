@@ -5,14 +5,13 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
 
-def show_error_dialog(window, title: str, message: str) -> None:
+def show_error_dialog(window: Gtk.Window, title: str, message: str) -> None:
     def inner() -> None:
         dialog = Gtk.MessageDialog(
-            window,
-            0,
-            Gtk.MessageType.ERROR,
-            Gtk.ButtonsType.CLOSE,
-            title,
+            transient_for=window,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.CLOSE,
+            text=title,
         )
         dialog.format_secondary_text(message)
         dialog.run()

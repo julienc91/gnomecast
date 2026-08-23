@@ -5,9 +5,9 @@ import sys
 import threading
 import time
 import traceback
-import urllib
+import urllib.parse
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .ffmpeg import check_ffmpeg_installed, get_media_duration
@@ -52,21 +52,22 @@ Thanks! - Gnomecast
 
 class Gnomecast:
     def __init__(self):
-        self.webserver = None
-        self.cast = None
-        self.last_known_player_state = None
-        self.last_known_current_time = None
-        self.last_time_current_time = None
-        self.fn = None
-        self.video_stream = None
-        self.audio_stream = None
-        self.last_fn_played = None
-        self.transcoder = None
-        self.duration = None
-        self.subtitles = None
+        self.main_loop = GLib.MainLoop()
+        self.webserver: GnomecastWebServer | None = None
+        self.cast: pychromecast.Chromecast | None = None
+        self.last_known_player_state: str | None = None
+        self.last_known_current_time: float | None = None
+        self.last_time_current_time: float | None = None
+        self.fn: str | None = None
+        self.video_stream: StreamMetadata | None = None
+        self.audio_stream: AudioMetadata | None = None
+        self.last_fn_played: str | None = None
+        self.transcoder: Transcoder | None = None
+        self.duration: float | None = None
+        self.subtitles: str | None = None
         self.seeking = False
-        self.seek_confirmed_after = None
-        self.last_known_volume_level = None
+        self.seek_confirmed_after: datetime | None = None
+        self.last_known_volume_level: float | None = None
         self.screen_saver_inhibitor = ScreenSaverInhibitor()
         self.autoplay = False
 
@@ -82,7 +83,7 @@ class Gnomecast:
             self.select_subtitles_file(subtitles)
         if fn and subtitles:
             self.autoplay = True
-        Gtk.main()
+        self.main_loop.run()
 
     def check_ffmpeg(self):
         time.sleep(1)
@@ -166,12 +167,16 @@ class Gnomecast:
             if self.last_known_current_time != mc.status.current_time:
                 self.last_known_current_time = mc.status.current_time
                 self.last_time_current_time = time.time()
-            if not seeking and mc.status.player_state == "PLAYING":
+            if (
+                not seeking
+                and mc.status.player_state == "PLAYING"
+                and self.last_time_current_time is not None
+            ):
                 GLib.idle_add(
-                    lambda: self.scrubber_adj.set_value(
-                        mc.status.current_time
-                        + time.time()
-                        - self.last_time_current_time
+                    lambda current_time=mc.status.current_time, last_time_current_time=self.last_time_current_time: (
+                        self.scrubber_adj.set_value(
+                            current_time + time.time() - last_time_current_time
+                        )
                     )
                 )
 
@@ -216,7 +221,7 @@ class Gnomecast:
         self.play_button.set_sensitive(
             bool(
                 self.transcoder
-                and self.cast
+                and mc
                 and mc.status.player_state
                 in ("BUFFERING", "PLAYING", "PAUSED", "IDLE", "UNKNOWN")
                 and self.fn
@@ -227,27 +232,27 @@ class Gnomecast:
         self.stop_button.set_sensitive(
             bool(
                 self.transcoder
-                and self.cast
+                and mc
                 and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
             )
         )
         self.rewind_button.set_sensitive(
             bool(
                 self.transcoder
-                and self.cast
+                and mc
                 and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
             )
         )
         self.forward_button.set_sensitive(
             bool(
                 self.transcoder
-                and self.cast
+                and mc
                 and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
             )
         )
         self.play_button.set_image(
             Gtk.Image(stock=Gtk.STOCK_MEDIA_PAUSE)
-            if self.cast and mc.status.player_state == "PLAYING"
+            if mc and mc.status.player_state == "PLAYING"
             else Gtk.Image(stock=Gtk.STOCK_MEDIA_PLAY)
         )
         if self.transcoder and self.duration:
@@ -285,7 +290,7 @@ class Gnomecast:
         cast_combo.pack_start(renderer_text, True)
         cast_combo.add_attribute(renderer_text, "text", 1)
         hbox.pack_start(cast_combo, True, True, 0)
-        refresh_button = Gtk.Button(None, image=Gtk.Image(stock=Gtk.STOCK_REFRESH))
+        refresh_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_REFRESH))
         refresh_button.connect("clicked", self.init_casts)
         hbox.pack_start(refresh_button, False, False, 0)
 
@@ -297,7 +302,7 @@ class Gnomecast:
         )  # name, path, duration, duration_str, thumbnail_fn, transcode_progress, status_icon, transcoder, file_metadata
         self.files_store.connect("row-inserted", self.update_button_visible)
         self.files_store.connect("row-deleted", self.update_button_visible)
-        self.files_view = Gtk.TreeView(self.files_store)
+        self.files_view = Gtk.TreeView(model=self.files_store)
         self.files_view.get_selection().set_mode(Gtk.SelectionMode.MULTIPLE)
         self.files_view.set_headers_visible(False)
         self.files_view.set_rules_hint(True)
@@ -334,12 +339,12 @@ class Gnomecast:
             orientation=Gtk.Orientation.VERTICAL, spacing=8
         )
         hbox.pack_start(btn_vbox, True, True, 0)
-        self.file_button = Gtk.Button(None, image=Gtk.Image(stock=Gtk.STOCK_ADD))
+        self.file_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_ADD))
         self.file_button.set_tooltip_text("Add one or more audio or video files...")
         self.file_button.set_always_show_image(True)
         self.file_button.connect("clicked", self.on_file_clicked)
         btn_vbox.pack_start(self.file_button, True, True, 0)
-        self.remove_button = Gtk.Button(None, image=Gtk.Image(stock=Gtk.STOCK_REMOVE))
+        self.remove_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_REMOVE))
         self.remove_button.set_tooltip_text(
             "Overwrite original file with transcoded version."
         )
@@ -375,9 +380,7 @@ class Gnomecast:
         self.subtitle_combo.set_active(0)
         self.file_detail_row.pack_start(self.subtitle_combo, True, True, 0)
 
-        file_info_button = Gtk.Button(
-            None, image=Gtk.Image(stock=Gtk.STOCK_DIALOG_INFO)
-        )
+        file_info_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_DIALOG_INFO))
         file_info_button.connect("clicked", self.show_file_info)
         self.file_detail_row.pack_start(file_info_button, False, False, 0)
 
@@ -398,26 +401,22 @@ class Gnomecast:
         vbox.pack_start(self.scrubber, False, False, 0)
 
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
-        self.rewind_button = Gtk.Button(
-            None, image=Gtk.Image(stock=Gtk.STOCK_MEDIA_REWIND)
-        )
+        self.rewind_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_MEDIA_REWIND))
         self.rewind_button.connect("clicked", self.rewind_clicked)
         self.rewind_button.set_sensitive(False)
         self.rewind_button.set_relief(Gtk.ReliefStyle.NONE)
         hbox.pack_start(self.rewind_button, True, False, 0)
-        self.play_button = Gtk.Button(None, image=Gtk.Image(stock=Gtk.STOCK_MEDIA_PLAY))
+        self.play_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_MEDIA_PLAY))
         self.play_button.connect("clicked", self.play_clicked)
         self.play_button.set_sensitive(False)
         self.play_button.set_relief(Gtk.ReliefStyle.NONE)
         hbox.pack_start(self.play_button, True, False, 0)
-        self.forward_button = Gtk.Button(
-            None, image=Gtk.Image(stock=Gtk.STOCK_MEDIA_FORWARD)
-        )
+        self.forward_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_MEDIA_FORWARD))
         self.forward_button.connect("clicked", self.forward_clicked)
         self.forward_button.set_sensitive(False)
         self.forward_button.set_relief(Gtk.ReliefStyle.NONE)
         hbox.pack_start(self.forward_button, True, False, 0)
-        self.stop_button = Gtk.Button(None, image=Gtk.Image(stock=Gtk.STOCK_MEDIA_STOP))
+        self.stop_button = Gtk.Button(image=Gtk.Image(stock=Gtk.STOCK_MEDIA_STOP))
         self.stop_button.connect("clicked", self.stop_clicked)
         self.stop_button.set_sensitive(False)
         self.stop_button.set_relief(Gtk.ReliefStyle.NONE)
@@ -470,12 +469,14 @@ class Gnomecast:
     def update_button_visible(self, x=None, y=None, z=None):
         print("update_button_visible")
         count = len(self.files_store)
-        self.scrolled_window.set_visible(count)
-        self.remove_button.set_visible(count)
+        self.scrolled_window.set_visible(bool(count))
+        self.remove_button.set_visible(bool(count))
         self.file_button.set_label(
             "" if count else "  Add one or more audio or video files..."
         )
-        self.file_button.get_child().set_padding(
+        file_button_child = self.file_button.get_child()
+        assert isinstance(file_button_child, Gtk.Alignment)
+        file_button_child.set_padding(
             1, 0, 2, 0
         )  # w/ an empty label the + icon isn't quite centered
         self.hbox.set_child_packing(
@@ -500,7 +501,7 @@ class Gnomecast:
             if transcoder:
                 transcoder.destroy()
             fn = store.get_value(iterx, 1)
-            store.remove(iterx)
+            self.files_store.remove(iterx)
             if self.fn == fn:
                 self.unselect_file()
 
@@ -567,7 +568,7 @@ class Gnomecast:
             self.select_file(files[0])
         path = Gtk.TreePath().new_first()
         _1, _2, width, height = self.files_view_progress_column.cell_get_size()
-        height += self.file_view_column_renderer.get_padding().ypad * 2
+        height += self.file_view_column_renderer.get_padding()[1] * 2
         height += 2  # measured - row lines?
         self.scrolled_window.set_min_content_height(
             height * min(len(self.files_store), 6)
@@ -575,6 +576,8 @@ class Gnomecast:
 
     @throttle(seconds=1)
     def volume_moved(self, button, volume):
+        if not self.cast:
+            return
         if self.last_known_volume_level != volume:
             self.last_known_volume_level = volume
             self.cast.set_volume(volume)
@@ -602,9 +605,11 @@ class Gnomecast:
 
     @throttle(seconds=2)
     def scrubber_moved(self, scale, scroll_type, seconds):
+        if not self.cast:
+            return
         print("scrubber_moved", seconds)
         self.seeking = True
-        self.seek_confirmed_after = datetime.utcnow()
+        self.seek_confirmed_after = datetime.now(UTC)
         self.cast.media_controller.seek(seconds)
 
     def stop_clicked(self, widget):
@@ -630,7 +635,7 @@ class Gnomecast:
             if thumbnail_fn and os.path.isfile(thumbnail_fn):
                 os.remove(thumbnail_fn)
         self.screen_saver_inhibitor.stop()
-        Gtk.main_quit()
+        self.main_loop.quit()
 
     def forward_clicked(self, widget):
         self.seek_delta(30)
@@ -639,6 +644,8 @@ class Gnomecast:
         self.seek_delta(-10)
 
     def seek_delta(self, delta):
+        if not self.cast or self.last_time_current_time is None:
+            return
         seconds = (
             self.cast.media_controller.status.current_time
             + time.time()
@@ -649,12 +656,14 @@ class Gnomecast:
         self.cast.media_controller.status.current_time = seconds
         self.scrubber_adj.set_value(seconds)
         self.seeking = True
-        self.seek_confirmed_after = datetime.utcnow()
+        self.seek_confirmed_after = datetime.now(UTC)
         self.cast.media_controller.seek(seconds)
 
     def play_clicked(self, widget):
         if not self.cast:
             print("no cast selected")
+            return
+        if not self.fn or not self.webserver:
             return
         cast = self.cast
         mc = cast.media_controller
@@ -668,20 +677,19 @@ class Gnomecast:
             cast.wait()
             self._try_cast_command(cast.quit_app)
             mc = cast.media_controller
-            kwargs = {}
-            if self.subtitles:
-                kwargs["subtitles"] = self.webserver.get_subtitles_url()
+            subtitles_url = (
+                self.webserver.get_subtitles_url() if self.subtitles else None
+            )
 
             current_time = self.scrubber_adj.get_value()
-            if current_time:
-                kwargs["current_time"] = current_time
             self.speed_button.set_value(1.0)
             ext = self.fn.split(".")[-1]
             ext = "".join(ch for ch in ext if ch.isalnum()).lower()
             mc.play_media(
                 f"{self.webserver.get_media_base_url()}/{hash(self.fn)}.{ext}",
                 "audio/%s" % ext if ext in AUDIO_EXTS else "video/mp4",
-                **kwargs,
+                subtitles=subtitles_url,
+                current_time=current_time if current_time else None,
             )
             print(cast.status)
             print(mc.status)
@@ -693,15 +701,15 @@ class Gnomecast:
 
     def on_file_clicked(self, widget):
         dialog = Gtk.FileChooserDialog(
-            "Please choose an audio or video file...",
-            self.win,
-            Gtk.FileChooserAction.OPEN,
-            (
-                Gtk.STOCK_CANCEL,
-                Gtk.ResponseType.CANCEL,
-                Gtk.STOCK_OPEN,
-                Gtk.ResponseType.OK,
-            ),
+            title="Please choose an audio or video file...",
+            transient_for=self.win,
+            action=Gtk.FileChooserAction.OPEN,
+        )
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL,
+            Gtk.ResponseType.CANCEL,
+            Gtk.STOCK_OPEN,
+            Gtk.ResponseType.OK,
         )
         dialog.set_select_multiple(True)
 
@@ -728,15 +736,15 @@ class Gnomecast:
 
     def on_new_subtitle_clicked(self):
         dialog = Gtk.FileChooserDialog(
-            "Please choose a subtitle file...",
-            self.win,
-            Gtk.FileChooserAction.OPEN,
-            (
-                Gtk.STOCK_CANCEL,
-                Gtk.ResponseType.CANCEL,
-                Gtk.STOCK_OPEN,
-                Gtk.ResponseType.OK,
-            ),
+            title="Please choose a subtitle file...",
+            transient_for=self.win,
+            action=Gtk.FileChooserAction.OPEN,
+        )
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL,
+            Gtk.ResponseType.CANCEL,
+            Gtk.STOCK_OPEN,
+            Gtk.ResponseType.OK,
         )
 
         if self.fn:
@@ -750,9 +758,11 @@ class Gnomecast:
 
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
+            filename = dialog.get_filename()
             print("Open clicked")
-            print("File selected: " + dialog.get_filename())
-            self.select_subtitles_file(dialog.get_filename())
+            print("File selected: " + (filename or ""))
+            if filename:
+                self.select_subtitles_file(filename)
         elif response == Gtk.ResponseType.CANCEL:
             print("Cancel clicked")
             self.subtitle_combo.set_active(0)
@@ -925,7 +935,7 @@ class Gnomecast:
                 transcode_next = True
 
     def get_duration(self, fn: str) -> None:
-        duration = get_media_duration(fn)
+        duration = get_media_duration(Path(fn))
         if fn == self.fn:
             self.duration = duration
 
@@ -954,6 +964,8 @@ class Gnomecast:
             self.add_extra_subtitle_options()
 
         GLib.idle_add(f)
+        if not self.fn:
+            return
         ext = self.fn.split(".")[-1]
         sexts = ["vtt", "srt"]
         for sext in sexts:
@@ -1000,11 +1012,12 @@ class Gnomecast:
     def error_callback(self, msg):
         def f():
             dialogWindow = Gtk.MessageDialog(
-                self.win,
-                Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-                Gtk.MessageType.INFO,
-                Gtk.ButtonsType.OK,
-                "\nGnomecast encountered an error converting your file.",
+                transient_for=self.win,
+                modal=True,
+                destroy_with_parent=True,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.OK,
+                text="\nGnomecast encountered an error converting your file.",
             )
             dialogWindow.set_title("Transcoding Error")
             dialogWindow.set_default_size(1, 400)
@@ -1039,16 +1052,17 @@ class Gnomecast:
             )
         msg += "\nChromecast: v%s" % (__version__)
         dialogWindow = Gtk.MessageDialog(
-            self.win,
-            Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-            Gtk.MessageType.INFO,
-            Gtk.ButtonsType.OK,
-            msg,
+            transient_for=self.win,
+            modal=True,
+            destroy_with_parent=True,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text=msg,
         )
         dialogWindow.set_title("File Info")
         dialogWindow.set_default_size(1, 400)
 
-        if self.cast:
+        if self.cast and self.fn:
             title = "Error playing %s" % os.path.basename(self.fn)
             body = """
 [Please describe what happened here...]
@@ -1092,11 +1106,12 @@ class Gnomecast:
 
     def get_nonlocal_cast(self):
         dialogWindow = Gtk.MessageDialog(
-            self.win,
-            Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-            Gtk.MessageType.QUESTION,
-            Gtk.ButtonsType.OK_CANCEL,
-            "\nPlease specify the IP address or hostname of a Chromecast device:",
+            transient_for=self.win,
+            modal=True,
+            destroy_with_parent=True,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.OK_CANCEL,
+            text="\nPlease specify the IP address or hostname of a Chromecast device:",
         )
 
         dialogWindow.set_title("Add a non-local Chromecast")
@@ -1120,11 +1135,10 @@ class Gnomecast:
                 self.cast_combo.set_active(len(self.cast_store) - 1)
             except pychromecast.error.ChromecastConnectionError:
                 dialog = Gtk.MessageDialog(
-                    self.win,
-                    0,
-                    Gtk.MessageType.ERROR,
-                    Gtk.ButtonsType.CLOSE,
-                    "Chromecast Not Found",
+                    transient_for=self.win,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.CLOSE,
+                    text="Chromecast Not Found",
                 )
                 dialog.format_secondary_text("The Chromecast '%s' wasn't found." % text)
                 dialog.run()
@@ -1157,14 +1171,18 @@ class Gnomecast:
                     stream._subtitles = extract_single_subtitle(fmd.fn, stream.index)
                 self.subtitles = stream._subtitles if stream else None
                 mc = self.cast.media_controller if self.cast else None
-                if mc and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED"):
+                if (
+                    self.cast
+                    and mc
+                    and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
+                ):
                     self.stop_clicked(None)
                     self.cast.wait()
 
                     def f():
                         self.play_clicked(None)
 
-                    start_thread(GLib.iddle_add, args=(f,), delay=1)
+                    start_thread(GLib.idle_add, args=(f,), delay=1)
         else:
             entry = combo.get_child()
 

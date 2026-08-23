@@ -15,7 +15,7 @@ def convert_subtitles_to_webvtt(subtitles_path: Path) -> str:
 
     converter = pycaption.CaptionConverter()
     converter.read(subtitles, pycaption.detect_format(subtitles)())
-    return converter.write(pycaption.WebVTTWriter())
+    return str(converter.write(pycaption.WebVTTWriter()))
 
 
 def extract_single_subtitle(input_path: str, index: str) -> str | None:
@@ -57,7 +57,15 @@ def extract_subtitles_from_file(
         output_files = []
         for i, index in enumerate(indexes):
             output_file = temp_dir / f"subtitle_{i:03d}.vtt"
-            cmd += ["-map", index, "-f", "webvtt", "-scodec", "webvtt", output_file]
+            cmd += [
+                "-map",
+                index,
+                "-f",
+                "webvtt",
+                "-scodec",
+                "webvtt",
+                str(output_file),
+            ]
             output_files.append(output_file)
 
         try:

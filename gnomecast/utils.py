@@ -2,6 +2,7 @@ import os
 import socket
 import threading
 from collections.abc import Callable, Iterable
+from typing import Any
 
 
 def get_webserver_ip_address() -> str:
@@ -9,13 +10,13 @@ def get_webserver_ip_address() -> str:
     _, _, ip_addresses = socket.gethostbyname_ex(hostname)
     for ip in ip_addresses:
         if not ip.startswith("127."):
-            return ip
+            return str(ip)
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect(("1.1.1.1", 53))
         ip, _ = s.getsockname()
     # TODO: handle OSError (network unreachable) and return explicit message
-    return ip
+    return str(ip)
 
 
 def get_webserver_port() -> int:
@@ -25,11 +26,11 @@ def get_webserver_port() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("0.0.0.0", 0))
             _, port = s.getsockname()
-        return port
+        return int(port)
 
 
-def throttle(seconds: float) -> Callable[[Callable], Callable]:
-    def decorator(f: Callable) -> Callable:
+def throttle(seconds: float) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
         timer = None
         latest_args, latest_kwargs = (), {}
 
@@ -65,10 +66,10 @@ def get_tempfile_prefix() -> str:
 
 
 def start_thread(
-    target: Callable,
+    target: Callable[..., Any],
     *,
-    args: Iterable | None = None,
-    kwargs: dict | None = None,
+    args: Iterable[Any] | None = None,
+    kwargs: dict[str, Any] | None = None,
     delay: float | None = None,
     daemon: bool = False,
 ) -> None:

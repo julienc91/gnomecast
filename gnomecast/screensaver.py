@@ -1,4 +1,8 @@
 from functools import cached_property
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import dbus as _dbus
 
 try:
     import dbus
@@ -12,7 +16,7 @@ class ScreenSaverInhibitor:
         self._inhibit_cookie = None
 
     @cached_property
-    def screen_saver_interface(self) -> "dbus.Interface | None":
+    def screen_saver_interface(self) -> "_dbus.Interface | None":
         if dbus is None:
             return None
 

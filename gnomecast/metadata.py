@@ -2,6 +2,10 @@ import os
 import re
 import subprocess
 import time
+from collections.abc import Callable
+from pathlib import Path
+
+from typing_extensions import override
 
 from .ffmpeg import extract_thumbnail
 from .utils import start_thread
@@ -12,7 +16,9 @@ class StreamMetadata:
         self.index = index
         self.codec = codec
         self.title = title
+        self._subtitles: str | None = None
 
+    @override
     def __repr__(self):
         fields = [
             "%s:%s" % (k, v)
@@ -42,12 +48,19 @@ class AudioMetadata(StreamMetadata):
 
 
 class FileMetadata:
-    def __init__(self, fn, callback):
+    def __init__(self, fn: str, callback: Callable[["FileMetadata"], None] | None):
         self.fn = fn
         self.ready = False
+        self.thumbnail_fn: str = ""
+        self._ffmpeg_output: str = ""
+        self._important_ffmpeg: str = ""
+        self.container: str = ""
+        self.video_streams: list[StreamMetadata] = []
+        self.audio_streams: list[AudioMetadata] = []
+        self.subtitles: list[StreamMetadata] = []
 
         def parse():
-            self.thumbnail_fn = str(extract_thumbnail(fn))
+            self.thumbnail_fn = str(extract_thumbnail(Path(fn)))
             self._ffmpeg_output = subprocess.check_output(
                 ["ffmpeg", "-i", fn, "-f", "ffmetadata", "-"],
                 stderr=subprocess.STDOUT,
@@ -95,6 +108,7 @@ class FileMetadata:
                     _important_ffmpeg.append(line)
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
                     print(line, id)
+                    title = "Subtitle #%i" % (len(self.subtitles) + 1)
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
                         id = id[: id.index("(")]
@@ -121,6 +135,7 @@ class FileMetadata:
         for stream in self.subtitles:
             stream._subtitles = None
 
+    @override
     def __repr__(self):
         fields = [
             "%s:%s" % (k, v) for k, v in self.__dict__.items() if not k.startswith("_")
