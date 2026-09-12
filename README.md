@@ -1,6 +1,6 @@
-![alt text](https://raw.githubusercontent.com/julienc91/gnomecast/master/docs/screenshot.png)
+![alt text](https://raw.githubusercontent.com/julienc91/gnomecast/main/docs/screenshot.png)
 
-Gnomecast ![logo](https://github.com/julienc91/gnomecast/raw/master/icons/gnomecast_16.png)
+Gnomecast ![logo](https://github.com/julienc91/gnomecast/raw/main/icons/gnomecast_16.png)
 =========
 
 This is a native Linux GUI for casting local files to Chromecast devices.  It supports:
@@ -35,7 +35,7 @@ Run
 
 After installing, log out and log back in.  It will be in your launcher:
 
-![alt text](https://raw.githubusercontent.com/julienc91/gnomecast/master/docs/launcher.png)
+![alt text](https://raw.githubusercontent.com/julienc91/gnomecast/main/docs/launcher.png)
 
 You can also run it from the command line:
 
@@ -87,7 +87,7 @@ Thanks To...
 
 And everyone who made this project hit [HN's front page](https://news.ycombinator.com/item?id=16386173) and #2 on GitHub's trending list!  That's so awesome!!!
 
-![alt text](https://raw.githubusercontent.com/julienc91/gnomecast/master/docs/trending.png)
+![alt text](https://raw.githubusercontent.com/julienc91/gnomecast/main/docs/trending.png)
 
 
 Transcoding
