@@ -3,7 +3,9 @@ import os
 
 TRANSCODE_CACHE_DIR = "/var/tmp" if os.path.isdir("/var/tmp") else "/tmp"
 TRANSCODE_CACHE_MP4 = os.path.join(TRANSCODE_CACHE_DIR, "gnomecast_transcode_cache.mp4")
-TRANSCODE_CACHE_JSON = os.path.join(TRANSCODE_CACHE_DIR, "gnomecast_transcode_cache.json")
+TRANSCODE_CACHE_JSON = os.path.join(
+    TRANSCODE_CACHE_DIR, "gnomecast_transcode_cache.json"
+)
 
 
 def read_transcode_cache():

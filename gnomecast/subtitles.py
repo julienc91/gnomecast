@@ -1,6 +1,7 @@
 import subprocess
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
 import pycaption
 
 
@@ -27,8 +28,12 @@ def extract_single_subtitle(input_path: str, index: str) -> str | None:
             *("-v", "0"),
             *("-i", input_path),
             *("-vn", "-an"),
-            "-map", index,
-            "-f", "webvtt", "-scodec", "webvtt",
+            "-map",
+            index,
+            "-f",
+            "webvtt",
+            "-scodec",
+            "webvtt",
             output_file,
         ]
         try:

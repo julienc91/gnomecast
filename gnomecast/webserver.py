@@ -41,7 +41,7 @@ class GnomecastWebServer:
                 )
             )
             print("ranges", ranges)
-            offset, end = ranges[0]
+            offset, _end = ranges[0]
             transcoder = self.get_transcoder()
             transcoder.wait_for_byte(offset)
             response = bottle.static_file(transcoder.fn, root="/")

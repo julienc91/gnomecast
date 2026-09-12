@@ -21,11 +21,11 @@ class StreamMetadata:
     @override
     def __repr__(self):
         fields = [
-            "%s:%s" % (k, v)
+            f"{k}:{v}"
             for k, v in self.__dict__.items()
             if v is not None and not k.startswith("_")
         ]
-        return "%s(%s)" % (self.__class__.__name__, ", ".join(fields))
+        return "{}({})".format(self.__class__.__name__, ", ".join(fields))
 
 
 class AudioMetadata(StreamMetadata):
@@ -44,7 +44,7 @@ class AudioMetadata(StreamMetadata):
             channels = "7.1"
         else:
             channels = str(self.channels)
-        return "%s (%s/%s)" % (self.title, self.codec, channels)
+        return f"{self.title} ({self.codec}/{channels})"
 
 
 class FileMetadata:
@@ -79,7 +79,7 @@ class FileMetadata:
                 if line.startswith("Stream") and "Video" in line:
                     _important_ffmpeg.append(line)
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
-                    title = "Video #%i" % (len(self.video_streams) + 1)
+                    title = f"Video #{len(self.video_streams) + 1}"
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
                         id = id[: id.index("(")]
@@ -88,7 +88,7 @@ class FileMetadata:
                     self.video_streams.append(stream)
                 elif line.startswith("Stream") and "Audio" in line:
                     _important_ffmpeg.append(line)
-                    title = "Audio #%i" % (len(self.audio_streams) + 1)
+                    title = f"Audio #{len(self.audio_streams) + 1}"
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
@@ -108,7 +108,7 @@ class FileMetadata:
                     _important_ffmpeg.append(line)
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
                     print(line, id)
-                    title = "Subtitle #%i" % (len(self.subtitles) + 1)
+                    title = f"Subtitle #{len(self.subtitles) + 1}"
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
                         id = id[: id.index("(")]
@@ -137,17 +137,16 @@ class FileMetadata:
 
     @override
     def __repr__(self):
-        fields = [
-            "%s:%s" % (k, v) for k, v in self.__dict__.items() if not k.startswith("_")
-        ]
-        return "FileMetadata(%s)" % ", ".join(fields)
+        fields = [f"{k}:{v}" for k, v in self.__dict__.items() if not k.startswith("_")]
+        return "FileMetadata({})".format(", ".join(fields))
 
     def details(self):
         fields = [
-            "File: %s" % os.path.basename(self.fn),
-            "Video: %s"
-            % ", ".join(["%s (%s)" % (s.title, s.codec) for s in self.video_streams]),
-            "Audio: %s" % ", ".join([s.details() for s in self.audio_streams]),
-            "Subtitles: %s" % ", ".join([s.title for s in self.subtitles]),
+            f"File: {os.path.basename(self.fn)}",
+            "Video: {}".format(
+                ", ".join([f"{s.title} ({s.codec})" for s in self.video_streams])
+            ),
+            "Audio: {}".format(", ".join([s.details() for s in self.audio_streams])),
+            "Subtitles: {}".format(", ".join([s.title for s in self.subtitles])),
         ]
         return "\n".join(fields)

@@ -12,18 +12,18 @@ from pathlib import Path
 
 from .ffmpeg import check_ffmpeg_installed, get_media_duration
 from .gui import show_error_dialog
-from .metadata import StreamMetadata, AudioMetadata, FileMetadata
+from .metadata import AudioMetadata, FileMetadata, StreamMetadata
 from .screensaver import ScreenSaverInhibitor
-from .transcoder import Transcoder, AUDIO_EXTS
-from .utils import throttle, is_pid_running, start_thread, humanize_seconds
+from .subtitles import convert_subtitles_to_webvtt, extract_single_subtitle
+from .transcoder import AUDIO_EXTS, Transcoder
+from .utils import humanize_seconds, is_pid_running, start_thread, throttle
 from .version import __version__
 from .webserver import GnomecastWebServer
-from .subtitles import convert_subtitles_to_webvtt, extract_single_subtitle
 
 DEPS_MET = True
 try:
     import pychromecast
-except Exception as e:
+except Exception as e:  # noqa: BLE001 - best-effort import guard, any failure means deps aren't met
     traceback.print_exc()
     print(e)
     DEPS_MET = False
@@ -32,7 +32,7 @@ try:
     import gi
 
     gi.require_version("Gtk", "3.0")
-    from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Gio
+    from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 except ImportError:
     line = "-" * 70
     ERROR_MESSAGE = """
@@ -115,12 +115,11 @@ class Gnomecast:
             for row in self.files_store:
                 duration = row[2]
                 transcoder = row[7]
-                if transcoder:
-                    if duration:
-                        if transcoder.done:
-                            row[5] = 100
-                        else:
-                            row[5] = transcoder.progress_seconds * 100 // duration
+                if transcoder and duration:
+                    if transcoder.done:
+                        row[5] = 100
+                    else:
+                        row[5] = transcoder.progress_seconds * 100 // duration
 
         GLib.idle_add(f)
 
@@ -196,7 +195,7 @@ class Gnomecast:
             for cc in chromecasts:
                 friendly_name = cc.cast_info.friendly_name
                 if cc.cast_type != "cast":
-                    friendly_name = "%s (%s)" % (friendly_name, cc.cast_type)
+                    friendly_name = f"{friendly_name} ({cc.cast_type})"
                 self.cast_store.append([cc, friendly_name])
             if device:
                 found = False
@@ -263,7 +262,7 @@ class Gnomecast:
         self.update_button_visible()
 
     def build_gui(self):
-        self.win = win = Gtk.ApplicationWindow(title="Gnomecast v%s" % __version__)
+        self.win = win = Gtk.ApplicationWindow(title=f"Gnomecast v{__version__}")
         win.set_border_width(0)
         win.set_icon(self.get_logo_pixbuf(color="#000000"))
         enforce_target = Gtk.TargetEntry.new("text/plain", Gtk.TargetFlags(4), 129)
@@ -430,9 +429,7 @@ class Gnomecast:
         speed_label.set_tooltip_text("Playback speed")
         hbox.pack_start(speed_label, False, False, 0)
         self.speed_button = Gtk.SpinButton()
-        self.speed_button.set_adjustment(
-            Gtk.Adjustment(1.0, 0.5, 2.0, 0.05, 0.25, 0)
-        )
+        self.speed_button.set_adjustment(Gtk.Adjustment(1.0, 0.5, 2.0, 0.05, 0.25, 0))
         self.speed_button.set_digits(2)
         self.speed_button.set_width_chars(5)
         self.speed_button.set_tooltip_text("Playback speed")
@@ -489,7 +486,7 @@ class Gnomecast:
         self.seeking = True
 
     def on_files_view_selection_changed(self, selection):
-        model, treeiter = selection.get_selected_rows()
+        _model, treeiter = selection.get_selected_rows()
         self.remove_button.set_sensitive(bool(treeiter))
 
     def remove_files(self, w):
@@ -522,11 +519,11 @@ class Gnomecast:
         def f():
             self.win.resize(1, 1)
             self.scrubber_adj.set_value(0)
-            for row in self.files_store:
-                if self.fn == row[1]:
-                    row[6] = "video-x-generic"
+            for r in self.files_store:
+                if self.fn == r[1]:
+                    r[6] = "video-x-generic"
                 else:
-                    row[6] = None
+                    r[6] = None
             self.update_button_visible()
             self.update_media_button_states()
 
@@ -535,7 +532,7 @@ class Gnomecast:
         return True
 
     def queue_files(self, files):
-        existing_files = set([row[1] for row in self.files_store])
+        existing_files = {row[1] for row in self.files_store}
         files = [f for f in files if f not in existing_files]
         for fn in files:
             display = os.path.basename(fn)
@@ -566,8 +563,8 @@ class Gnomecast:
         self.scrolled_window.set_visible(True)
         if len(files) and self.fn is None:
             self.select_file(files[0])
-        path = Gtk.TreePath().new_first()
-        _1, _2, width, height = self.files_view_progress_column.cell_get_size()
+        Gtk.TreePath().new_first()
+        _1, _2, _width, height = self.files_view_progress_column.cell_get_size()
         height += self.file_view_column_renderer.get_padding()[1] * 2
         height += 2  # measured - row lines?
         self.scrolled_window.set_min_content_height(
@@ -592,7 +589,7 @@ class Gnomecast:
         if not self.cast:
             return
         mc = self.cast.media_controller
-        if mc.status is None or mc.status.media_session_id is None:
+        if mc.status is None or mc.status.media_session_id is None:  # ty: ignore[redundant-condition-strict]
             return
         mc.send_message(
             {
@@ -622,7 +619,6 @@ class Gnomecast:
         if color:
             svg = svg.replace("#aaaaaa", color)
         f = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes.new(svg.encode()))
-        preserve_aspect_ratio = True
         pixbuf = GdkPixbuf.Pixbuf.new_from_stream(f, None)
         return pixbuf
 
@@ -687,7 +683,7 @@ class Gnomecast:
             ext = "".join(ch for ch in ext if ch.isalnum()).lower()
             mc.play_media(
                 f"{self.webserver.get_media_base_url()}/{hash(self.fn)}.{ext}",
-                "audio/%s" % ext if ext in AUDIO_EXTS else "video/mp4",
+                f"audio/{ext}" if ext in AUDIO_EXTS else "video/mp4",
                 subtitles=subtitles_url,
                 current_time=current_time if current_time else None,
             )
@@ -983,7 +979,7 @@ class Gnomecast:
                 for audio_stream in fmd.audio_streams:
                     self.stream_store.append(
                         [
-                            "%s - %s" % (video_stream.title, audio_stream.title),
+                            f"{video_stream.title} - {audio_stream.title}",
                             video_stream,
                             audio_stream,
                         ]
@@ -1036,7 +1032,7 @@ class Gnomecast:
             scrolled_window.add(text_view)
             dialogBox.pack_end(scrolled_window, True, True, 0)
             dialogWindow.show_all()
-            response = dialogWindow.run()
+            dialogWindow.run()
             dialogWindow.destroy()
 
         GLib.idle_add(f)
@@ -1046,11 +1042,8 @@ class Gnomecast:
         fmd = self.get_fmd()
         msg = "\n" + fmd.details()
         if self.cast:
-            msg += "\nDevice: %s (%s)" % (
-                self.cast.cast_info.model_name,
-                self.cast.cast_info.manufacturer,
-            )
-        msg += "\nChromecast: v%s" % (__version__)
+            msg += f"\nDevice: {self.cast.cast_info.model_name} ({self.cast.cast_info.manufacturer})"
+        msg += f"\nChromecast: v{__version__}"
         dialogWindow = Gtk.MessageDialog(
             transient_for=self.win,
             modal=True,
@@ -1063,8 +1056,8 @@ class Gnomecast:
         dialogWindow.set_default_size(1, 400)
 
         if self.cast and self.fn:
-            title = "Error playing %s" % os.path.basename(self.fn)
-            body = """
+            title = f"Error playing {os.path.basename(self.fn)}"
+            body = f"""
 [Please describe what happened here...]
 
 [Please link to the download here...]
@@ -1075,15 +1068,12 @@ class Gnomecast:
 
 ------------------------------------------------------------
 
-%s
+{msg}
 
-%s
+{fmd}
 
-```%s``` """ % (msg, fmd, fmd._important_ffmpeg)
-            url = (
-                "https://github.com/keredson/gnomecast/issues/new?title=%s&body=%s"
-                % (urllib.parse.quote(title), urllib.parse.quote(body))
-            )
+```{fmd._important_ffmpeg}``` """
+            url = f"https://github.com/keredson/gnomecast/issues/new?title={urllib.parse.quote(title)}&body={urllib.parse.quote(body)}"
             dialogWindow.add_action_widget(
                 Gtk.LinkButton(url, label="Report File Doesn't Play"), 10
             )
@@ -1101,7 +1091,7 @@ class Gnomecast:
         dialogBox.pack_end(scrolled_window, True, True, 0)
 
         dialogWindow.show_all()
-        response = dialogWindow.run()
+        dialogWindow.run()
         dialogWindow.destroy()
 
     def get_nonlocal_cast(self):
@@ -1140,7 +1130,7 @@ class Gnomecast:
                     buttons=Gtk.ButtonsType.CLOSE,
                     text="Chromecast Not Found",
                 )
-                dialog.format_secondary_text("The Chromecast '%s' wasn't found." % text)
+                dialog.format_secondary_text(f"The Chromecast '{text}' wasn't found.")
                 dialog.run()
                 dialog.destroy()
 
@@ -1148,14 +1138,14 @@ class Gnomecast:
         tree_iter = combo.get_active_iter()
         if tree_iter is not None:
             model = combo.get_model()
-            cast, name = model[tree_iter][:2]
+            cast, _name = model[tree_iter][:2]
             if cast == -1:
                 self.get_nonlocal_cast()
             else:
                 print(cast)
                 self.select_cast(cast)
         else:
-            entry = combo.get_child()
+            combo.get_child()
 
     def on_subtitle_combo_changed(self, combo):
         tree_iter = combo.get_active_iter()
@@ -1184,7 +1174,7 @@ class Gnomecast:
 
                     start_thread(GLib.idle_add, args=(f,), delay=1)
         else:
-            entry = combo.get_child()
+            combo.get_child()
 
     def on_audio_combo_changed(self, combo):
         tree_iter = combo.get_active_iter()

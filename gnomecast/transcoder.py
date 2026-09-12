@@ -10,7 +10,7 @@ from .cache import (
     delete_transcode_cache,
     write_transcode_cache,
 )
-from .devices import get_device, Device
+from .devices import Device, get_device
 from .ffmpeg import parse_ffmpeg_time
 from .utils import start_thread
 
@@ -103,13 +103,13 @@ class Transcoder:
             dir = "/var/tmp" if os.path.isdir("/var/tmp") else None
             self.trans_fn = tempfile.mkstemp(
                 suffix=".mp4",
-                prefix="gnomecast_pid%i_transcode_" % os.getpid(),
+                prefix=f"gnomecast_pid{os.getpid()}_transcode_",
                 dir=dir,
             )[1]
             os.remove(self.trans_fn)
 
             self.transcode_cmd += [self.trans_fn]
-            print(" ".join(["'%s'" % s if " " in s else s for s in self.transcode_cmd]))
+            print(" ".join([f"'{s}'" if " " in s else s for s in self.transcode_cmd]))
             print("---------------------")
             print(" starting ffmpeg at:")
             print("---------------------")
@@ -154,7 +154,7 @@ class Transcoder:
                 print("waiting for", offset, "at", self.progress_bytes + buffer)
                 time.sleep(2)
         else:
-            while not self.done:
+            while not self.done:  # ty: ignore[redundant-condition-strict]
                 print("waiting for transcode to finish")
                 time.sleep(2)
         print("done waiting")
