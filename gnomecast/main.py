@@ -686,6 +686,7 @@ class Gnomecast:
                 f"audio/{ext}" if ext in AUDIO_EXTS else "video/mp4",
                 subtitles=subtitles_url,
                 current_time=current_time if current_time else None,
+                stream_type=pychromecast.STREAM_TYPE_BUFFERED,
             )
             print(cast.status)
             print(mc.status)
