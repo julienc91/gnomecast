@@ -86,10 +86,21 @@ class Transcoder:
                     "-c:a",
                     transcode_audio_to if self.transcode_audio else "copy",
                 ] + (["-b:a", "256k"] if self.transcode_audio else [])
-            self.transcode_cmd += [
-                "-c:v",
-                "h264" if self.transcode_video else "copy",
-            ]  # '-movflags', 'faststart'
+            if self.transcode_video:
+                # yuv420p: Chromecasts can't decode H.264 High 10 (from 10-bit sources)
+                self.transcode_cmd += [
+                    "-c:v",
+                    "h264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "21",
+                    "-pix_fmt",
+                    "yuv420p",
+                ]
+            else:
+                self.transcode_cmd += ["-c:v", "copy"]
+            # '-movflags', 'faststart'
 
             # Check transcode cache before starting ffmpeg
             if check_transcode_cache(self.source_fn, self.transcode_cmd):
