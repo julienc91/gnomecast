@@ -327,7 +327,7 @@ requires-dist = [
     { name = "paste", specifier = "~=3.10.1" },
     { name = "pycaption", specifier = "~=2.3.8" },
     { name = "pychromecast", specifier = "~=14.0.10" },
-    { name = "pygobject", specifier = "~=3.56.3" },
+    { name = "pygobject", specifier = ">=3.56.3,<3.59.0" },
     { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
@@ -609,16 +609,16 @@ wheels = [
 
 [[package]]
 name = "pycaption"
-version = "2.3.8"
+version = "2.3.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "cssutils" },
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c1/78/48457c8b758353669ecf109c2e44cb9ce2c32198095940caf395eb09d206/pycaption-2.3.8.tar.gz", hash = "sha256:544a3fcdccf91b8e2f8dbb87d6502167d54642f50443584233e6077d8f2ba7fe", size = 158326, upload-time = "2026-08-17T12:13:21.547Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/97/af65fd767ea5c12ee30dbfb722b98db7ac02182b32f65a317c5cb343591d/pycaption-2.3.9.tar.gz", hash = "sha256:63067362ad31cdfcd46f218b6298276231c2cddad9437b05eea5d0dde49ace0c", size = 164481, upload-time = "2026-08-25T11:49:25.03Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/9d/dc7cf2e5b45891cda762d66dbafe2b0c8bfafe42c6958f5f2e3661a4f056/pycaption-2.3.8-py3-none-any.whl", hash = "sha256:bed8fc6487d8cfd8ada36106b34c12a28ce5611f9cb467b8f01a0131b7dd34b0", size = 179668, upload-time = "2026-08-17T12:13:20.321Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/04/42ee90ce8e84aa0037e5dbb8cc372ba6d9caf0af87b905ce51f6e1041c39/pycaption-2.3.9-py3-none-any.whl", hash = "sha256:6686e375a8b10fa07df62fdeb196a33f6efbf82345ecaeee0d5dd63dbe1fe4d5", size = 186128, upload-time = "2026-08-25T11:49:24.044Z" },
 ]
 
 [[package]]
@@ -637,12 +637,12 @@ wheels = [
 
 [[package]]
 name = "pygobject"
-version = "3.56.3"
+version = "3.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pycairo" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/da/61/978c5fbca34f10a90df362502fbb5a005637909e7b5a0e9212349ea9d010/pygobject-3.56.3.tar.gz", hash = "sha256:12760e4a0e3d04b6eb95e06f7a27e362c826d567ea613373a92c003b6c70d2d6", size = 1411853, upload-time = "2026-05-08T20:46:39.904Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a3/9b/473a5234ec86bce978d3583adc62441c84cc57181c4ea8a8978997c7f0c1/pygobject-3.58.0.tar.gz", hash = "sha256:45068697de3ffe46840ca369705f23118b34db4f7deb63f6eff079a6734ddcca", size = 1408568, upload-time = "2026-08-28T06:50:27.22Z" }
 
 [[package]]
 name = "pygobject-stubs"
