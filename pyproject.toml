@@ -16,7 +16,7 @@ dependencies = [
     "paste~=3.10.1",
     "pycaption~=2.3.8",
     "pychromecast~=14.0.10",
-    "pygobject~=3.56.3",
+    "pygobject>=3.56.3,<3.59.0",
     "typing-extensions>=4.12",
 ]
 classifiers = [
