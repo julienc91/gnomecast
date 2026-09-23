@@ -4,29 +4,24 @@ import signal
 import sys
 import threading
 import time
-import traceback
 import urllib.parse
-import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 
 from .ffmpeg import check_ffmpeg_installed, get_media_duration
 from .gui import show_error_dialog
 from .metadata import AudioMetadata, FileMetadata, StreamMetadata
+from .player import (
+    CastPlayer,
+    ChromecastConnectionError,
+    cast_from_host,
+    discover_casts,
+)
 from .screensaver import ScreenSaverInhibitor
 from .subtitles import convert_subtitles_to_webvtt, extract_single_subtitle
 from .transcoder import AUDIO_EXTS, Transcoder
 from .utils import humanize_seconds, is_pid_running, start_thread, throttle
 from .version import __version__
 from .webserver import GnomecastWebServer
-
-DEPS_MET = True
-try:
-    import pychromecast
-except Exception as e:  # noqa: BLE001 - best-effort import guard, any failure means deps aren't met
-    traceback.print_exc()
-    print(e)
-    DEPS_MET = False
 
 try:
     import gi
@@ -54,10 +49,12 @@ class Gnomecast:
     def __init__(self):
         self.main_loop = GLib.MainLoop()
         self.webserver: GnomecastWebServer | None = None
-        self.cast: pychromecast.Chromecast | None = None
-        self.last_known_player_state: str | None = None
-        self.last_known_current_time: float | None = None
-        self.last_time_current_time: float | None = None
+        self.player = CastPlayer(
+            on_state_changed=self.on_player_state_changed,
+            on_tick=self.on_player_tick,
+            on_position=self.on_player_position,
+            on_finished=self.check_for_next_in_queue,
+        )
         self.fn: str | None = None
         self.video_stream: StreamMetadata | None = None
         self.audio_stream: AudioMetadata | None = None
@@ -65,9 +62,6 @@ class Gnomecast:
         self.transcoder: Transcoder | None = None
         self.duration: float | None = None
         self.subtitles: str | None = None
-        self.seeking = False
-        self.seek_confirmed_after: datetime | None = None
-        self.last_known_volume_level: float | None = None
         self.screen_saver_inhibitor = ScreenSaverInhibitor()
         self.autoplay = False
 
@@ -76,7 +70,7 @@ class Gnomecast:
         self.init_casts(device=device)
         start_thread(self.check_ffmpeg)
         start_thread(self.start_server, daemon=True)
-        start_thread(self.monitor_cast, daemon=True)
+        self.player.start()
         if fn:
             self.queue_files([fn])
         if subtitles:
@@ -84,6 +78,10 @@ class Gnomecast:
         if fn and subtitles:
             self.autoplay = True
         self.main_loop.run()
+
+    @property
+    def cast(self):
+        return self.player.cast
 
     def check_ffmpeg(self):
         time.sleep(1)
@@ -109,8 +107,6 @@ class Gnomecast:
             self.update_button_visible()
             self.prep_next_transcode()
 
-        #    if self.last_known_player_state and self.last_known_player_state!='UNKNOWN':
-        #      notes.append('Cast: %s' % self.last_known_player_state)
         def f():
             for row in self.files_store:
                 duration = row[2]
@@ -123,61 +119,24 @@ class Gnomecast:
 
         GLib.idle_add(f)
 
-    def monitor_cast(self):
-        while True:
-            time.sleep(1)
-            if not self.cast:
-                continue
-            cast = self.cast
-            mc = cast.media_controller
-            if (
-                self.seeking
-                and self.seek_confirmed_after is not None
-                and mc.status.last_updated is not None
-                and mc.status.last_updated > self.seek_confirmed_after
-            ):
-                # Confirms via last_updated instead of a BUFFERING->PLAYING
-                # transition, which short seeks often skip entirely.
-                self.seeking = False
-            seeking = self.seeking
-            if mc.status.player_state != self.last_known_player_state:
-                if (
-                    mc.status.player_state == "IDLE"
-                    and self.last_known_player_state == "PLAYING"
-                ):
-                    self.check_for_next_in_queue()
-                if mc.status.player_state == "PLAYING":
-                    self.screen_saver_inhibitor.start()
-                else:
-                    self.screen_saver_inhibitor.stop()
-                self.last_known_player_state = mc.status.player_state
+    def on_player_state_changed(self, state):
+        if state == "PLAYING":
+            self.screen_saver_inhibitor.start()
+        else:
+            self.screen_saver_inhibitor.stop()
 
-                def f():
-                    self.update_media_button_states()
-                    self.update_status()
+        def f():
+            self.update_media_button_states()
+            self.update_status()
 
-                GLib.idle_add(f)
-            elif self.transcoder and not self.transcoder.done:
+        GLib.idle_add(f)
 
-                def f():
-                    self.update_status()
+    def on_player_position(self, seconds):
+        GLib.idle_add(self.scrubber_adj.set_value, seconds)
 
-                GLib.idle_add(f)
-            if self.last_known_current_time != mc.status.current_time:
-                self.last_known_current_time = mc.status.current_time
-                self.last_time_current_time = time.time()
-            if (
-                not seeking
-                and mc.status.player_state == "PLAYING"
-                and self.last_time_current_time is not None
-            ):
-                GLib.idle_add(
-                    lambda current_time=mc.status.current_time, last_time_current_time=self.last_time_current_time: (
-                        self.scrubber_adj.set_value(
-                            current_time + time.time() - last_time_current_time
-                        )
-                    )
-                )
+    def on_player_tick(self):
+        if self.transcoder and not self.transcoder.done:
+            GLib.idle_add(self.update_status)
 
     def init_casts(self, widget=None, device=None):
         self.cast_store.clear()
@@ -186,7 +145,7 @@ class Gnomecast:
         start_thread(self.load_casts, kwargs={"device": device})
 
     def load_casts(self, device=None):
-        chromecasts, _ = pychromecast.get_chromecasts()
+        chromecasts = discover_casts()
 
         def update_ui():
             self.cast_store.clear()
@@ -216,42 +175,23 @@ class Gnomecast:
         GLib.idle_add(update_ui)
 
     def update_media_button_states(self):
-        mc = self.cast.media_controller if self.cast else None
+        state = self.player.state
+        active = bool(self.transcoder and self.player.is_active)
         self.play_button.set_sensitive(
             bool(
                 self.transcoder
-                and mc
-                and mc.status.player_state
-                in ("BUFFERING", "PLAYING", "PAUSED", "IDLE", "UNKNOWN")
+                and state in ("BUFFERING", "PLAYING", "PAUSED", "IDLE", "UNKNOWN")
                 and self.fn
             )
         )
         self.volume_button.set_sensitive(bool(self.cast))
         self.speed_button.set_sensitive(bool(self.cast))
-        self.stop_button.set_sensitive(
-            bool(
-                self.transcoder
-                and mc
-                and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
-            )
-        )
-        self.rewind_button.set_sensitive(
-            bool(
-                self.transcoder
-                and mc
-                and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
-            )
-        )
-        self.forward_button.set_sensitive(
-            bool(
-                self.transcoder
-                and mc
-                and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
-            )
-        )
+        self.stop_button.set_sensitive(active)
+        self.rewind_button.set_sensitive(active)
+        self.forward_button.set_sensitive(active)
         self.play_button.set_image(
             Gtk.Image(stock=Gtk.STOCK_MEDIA_PAUSE)
-            if mc and mc.status.player_state == "PLAYING"
+            if state == "PLAYING"
             else Gtk.Image(stock=Gtk.STOCK_MEDIA_PLAY)
         )
         if self.transcoder and self.duration:
@@ -483,7 +423,7 @@ class Gnomecast:
 
     def scrubber_move_started(self, scale, scroll_type, seconds):
         print("scrubber_move_started", seconds)
-        self.seeking = True
+        self.player.begin_seek()
 
     def on_files_view_selection_changed(self, selection):
         _model, treeiter = selection.get_selected_rows()
@@ -513,8 +453,7 @@ class Gnomecast:
         thumbnail_fn = model[row][4]
         if thumbnail_fn and os.path.isfile(thumbnail_fn):
             self.thumbnail_image.set_from_file(thumbnail_fn)
-        if self.cast:
-            self._try_cast_command(self.cast.media_controller.stop)
+        self.player.stop()
 
         def f():
             self.win.resize(1, 1)
@@ -573,46 +512,22 @@ class Gnomecast:
 
     @throttle(seconds=1)
     def volume_moved(self, button, volume):
-        if not self.cast:
-            return
-        if self.last_known_volume_level != volume:
-            self.last_known_volume_level = volume
-            self.cast.set_volume(volume)
-            print("setting volume", volume)
+        self.player.set_volume(volume)
 
     @throttle(seconds=1)
     def speed_moved(self, spin_button):
         rate = spin_button.get_adjustment().get_value()
-        self.set_playback_rate(rate)
-
-    def set_playback_rate(self, rate):
-        if not self.cast:
-            return
-        mc = self.cast.media_controller
-        if mc.status is None or mc.status.media_session_id is None:  # ty: ignore[redundant-condition-strict]
-            return
-        mc.send_message(
-            {
-                "type": "SET_PLAYBACK_RATE",
-                "mediaSessionId": mc.status.media_session_id,
-                "playbackRate": rate,
-            },
-            inc_session_id=True,
-        )
+        self.player.set_playback_rate(rate)
 
     @throttle(seconds=2)
     def scrubber_moved(self, scale, scroll_type, seconds):
         if not self.cast:
             return
         print("scrubber_moved", seconds)
-        self.seeking = True
-        self.seek_confirmed_after = datetime.now(UTC)
-        self.cast.media_controller.seek(seconds)
+        self.player.seek(seconds)
 
     def stop_clicked(self, widget):
-        if not self.cast:
-            return
-        self._try_cast_command(self.cast.media_controller.stop)
+        self.player.stop()
 
     def get_logo_pixbuf(self, width=200, color=None):
         svg = (Path(__file__) / ".." / "assets" / "gnomecast.svg").resolve().read_text()
@@ -640,20 +555,9 @@ class Gnomecast:
         self.seek_delta(-10)
 
     def seek_delta(self, delta):
-        if not self.cast or self.last_time_current_time is None:
-            return
-        seconds = (
-            self.cast.media_controller.status.current_time
-            + time.time()
-            - self.last_time_current_time
-            + delta
-        )
-        self.last_time_current_time = time.time()
-        self.cast.media_controller.status.current_time = seconds
-        self.scrubber_adj.set_value(seconds)
-        self.seeking = True
-        self.seek_confirmed_after = datetime.now(UTC)
-        self.cast.media_controller.seek(seconds)
+        seconds = self.player.seek_delta(delta)
+        if seconds is not None:
+            self.scrubber_adj.set_value(seconds)
 
     def play_clicked(self, widget):
         if not self.cast:
@@ -661,18 +565,11 @@ class Gnomecast:
             return
         if not self.fn or not self.webserver:
             return
-        cast = self.cast
-        mc = cast.media_controller
 
-        print("mc.status.player_state", mc.status.player_state, self.fn, hash(self.fn))
-        if (
-            mc.status.player_state in ("IDLE", "UNKNOWN")
-            or self.last_fn_played != self.fn
-        ):
+        state = self.player.state
+        print("player state", state, self.fn, hash(self.fn))
+        if state in ("IDLE", "UNKNOWN") or self.last_fn_played != self.fn:
             self.last_fn_played = self.fn
-            cast.wait()
-            self._try_cast_command(cast.quit_app)
-            mc = cast.media_controller
             subtitles_url = (
                 self.webserver.get_subtitles_url() if self.subtitles else None
             )
@@ -681,20 +578,15 @@ class Gnomecast:
             self.speed_button.set_value(1.0)
             ext = self.fn.split(".")[-1]
             ext = "".join(ch for ch in ext if ch.isalnum()).lower()
-            mc.play_media(
+            self.player.play(
                 f"{self.webserver.get_media_base_url()}/{hash(self.fn)}.{ext}",
                 f"audio/{ext}" if ext in AUDIO_EXTS else "video/mp4",
-                subtitles=subtitles_url,
+                subtitles_url=subtitles_url,
                 current_time=current_time if current_time else None,
-                stream_type=pychromecast.STREAM_TYPE_BUFFERED,
             )
-            print(cast.status)
-            print(mc.status)
             self.prep_next_transcode()
-        elif mc.status.player_state == "PLAYING":
-            mc.pause()
-        elif mc.status.player_state == "PAUSED":
-            mc.play()
+        else:
+            self.player.toggle_pause()
 
     def on_file_clicked(self, widget):
         dialog = Gtk.FileChooserDialog(
@@ -783,12 +675,6 @@ class Gnomecast:
         self.subtitle_store.append([display_name, stream, None])
         self.subtitle_combo.set_active(pos)
 
-    def _try_cast_command(self, command, *args):
-        try:
-            command(*args)
-        except pychromecast.error.PyChromecastError as e:
-            print("cast command failed (ignored):", e)
-
     def unselect_file(self):
         self.thumbnail_image.set_from_pixbuf(self.get_logo_pixbuf())
         self.fn = None
@@ -797,8 +683,7 @@ class Gnomecast:
         self.subtitle_combo.set_active(0)
         self.transcoder = None
         self.duration = None
-        if self.cast:
-            self._try_cast_command(self.cast.media_controller.stop)
+        self.player.stop()
 
         def f():
             self.scrubber_adj.set_value(0)
@@ -821,8 +706,7 @@ class Gnomecast:
         self.fn = fn
         self.stream_store.clear()
         self.subtitle_store.clear()
-        if self.cast:
-            self._try_cast_command(self.cast.media_controller.stop)
+        self.player.stop()
 
         def f():
             self.scrubber_adj.set_value(0)
@@ -998,11 +882,10 @@ class Gnomecast:
         return False
 
     def select_cast(self, cast):
-        self.cast = cast
-        if cast:
-            self.last_known_volume_level = cast.media_controller.status.volume_level
-            self.volume_button.set_value(cast.media_controller.status.volume_level)
-        self.last_known_player_state = None
+        self.player.select(cast)
+        volume = self.player.volume_level
+        if volume is not None:
+            self.volume_button.set_value(volume)
         self.update_media_button_states()
         start_thread(self.update_transcoders)
 
@@ -1119,12 +1002,10 @@ class Gnomecast:
         if (response == Gtk.ResponseType.OK) and (text != ""):
             print(text)
             try:
-                cast = pychromecast.get_chromecast_from_host(
-                    (text, 8009, uuid.uuid4(), None, text)
-                )
+                cast = cast_from_host(text)
                 self.cast_store.append([cast, text])
                 self.cast_combo.set_active(len(self.cast_store) - 1)
-            except pychromecast.error.ChromecastConnectionError:
+            except ChromecastConnectionError:
                 dialog = Gtk.MessageDialog(
                     transient_for=self.win,
                     message_type=Gtk.MessageType.ERROR,
@@ -1161,14 +1042,9 @@ class Gnomecast:
                     fmd = self.get_fmd()
                     stream._subtitles = extract_single_subtitle(fmd.fn, stream.index)
                 self.subtitles = stream._subtitles if stream else None
-                mc = self.cast.media_controller if self.cast else None
-                if (
-                    self.cast
-                    and mc
-                    and mc.status.player_state in ("BUFFERING", "PLAYING", "PAUSED")
-                ):
-                    self.stop_clicked(None)
-                    self.cast.wait()
+                if self.player.is_active:
+                    self.player.stop()
+                    self.player.wait()
 
                     def f():
                         self.play_clicked(None)
