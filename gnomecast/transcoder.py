@@ -43,10 +43,7 @@ class Transcoder:
         print("Transcoder", fn)
         transcode_container = fmd.container not in ("mp4", "aac", "mp3", "wav")
         self.transcode_video = not self.can_play_video_codec(video_stream.codec)
-        self.transcode_audio = (
-            fmd.container not in AUDIO_EXTS
-            or not self.can_play_audio_stream(self.audio_stream)
-        )
+        self.transcode_audio = not self.can_play_audio_stream(self.audio_stream)
         self.transcode = (
             transcode_container or self.transcode_video or self.transcode_audio
         )
@@ -85,7 +82,12 @@ class Transcoder:
                     self.audio_stream.index,
                     "-c:a",
                     transcode_audio_to if self.transcode_audio else "copy",
-                ] + (["-b:a", "256k"] if self.transcode_audio else [])
+                ]
+                if self.transcode_audio:
+                    self.transcode_cmd += ["-b:a", "256k"]
+                    if transcode_audio_to == "mp3":
+                        # ~2x faster than lame's default, no audible loss at 256k
+                        self.transcode_cmd += ["-compression_level", "7"]
             if self.transcode_video:
                 # yuv420p: Chromecasts can't decode H.264 High 10 (from 10-bit sources)
                 self.transcode_cmd += [
