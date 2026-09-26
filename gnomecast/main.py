@@ -17,7 +17,12 @@ from .player import (
     discover_casts,
 )
 from .screensaver import ScreenSaverInhibitor
-from .subtitles import convert_subtitles_to_webvtt, extract_single_subtitle
+from .subtitles import (
+    convert_subtitles_to_webvtt,
+    extract_single_subtitle,
+    find_sidecar_subtitles,
+    get_preferred_language,
+)
 from .transcoder import AUDIO_EXTS, Transcoder
 from .utils import humanize_seconds, is_pid_running, start_thread, throttle
 from .version import __version__
@@ -658,7 +663,7 @@ class Gnomecast:
 
         dialog.destroy()
 
-    def select_subtitles_file(self, fn: str):
+    def select_subtitles_file(self, fn: str | Path, select: bool = True):
         substitles_path = Path(fn)
         if not substitles_path.is_file():
             show_error_dialog(
@@ -668,12 +673,13 @@ class Gnomecast:
 
         subtitles_path = substitles_path.resolve()
         display_name = subtitles_path.name
-        self.subtitles = convert_subtitles_to_webvtt(subtitles_path)
         pos = len(self.subtitle_store)
         stream = StreamMetadata(None, None, display_name)
-        stream._subtitles = self.subtitles
+        stream._subtitles = convert_subtitles_to_webvtt(subtitles_path)
         self.subtitle_store.append([display_name, stream, None])
-        self.subtitle_combo.set_active(pos)
+        if select:
+            self.subtitles = stream._subtitles
+            self.subtitle_combo.set_active(pos)
 
     def unselect_file(self):
         self.thumbnail_image.set_from_pixbuf(self.get_logo_pixbuf())
@@ -836,23 +842,21 @@ class Gnomecast:
         fmd = self.get_fmd()
         fmd.wait()
 
+        sidecars = (
+            find_sidecar_subtitles(Path(self.fn), get_preferred_language())
+            if self.fn
+            else []
+        )
+
         def f():
             self.subtitle_store.clear()
-            pos = len(self.subtitle_store)
             for stream in fmd.subtitles:
                 self.subtitle_store.append([stream.title, stream, None])
-                pos += 1
             self.add_extra_subtitle_options()
+            for i, sidecar in enumerate(sidecars):
+                self.select_subtitles_file(sidecar, select=i == 0)
 
         GLib.idle_add(f)
-        if not self.fn:
-            return
-        ext = self.fn.split(".")[-1]
-        sexts = ["vtt", "srt"]
-        for sext in sexts:
-            if os.path.isfile(self.fn[: -len(ext)] + sext):
-                self.select_subtitles_file(self.fn[: -len(ext)] + sext)
-                break
 
     def update_audio_tracks(self):
         fmd = self.get_fmd()
