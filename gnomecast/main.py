@@ -851,7 +851,7 @@ class Gnomecast:
         def f():
             self.subtitle_store.clear()
             for stream in fmd.subtitles:
-                self.subtitle_store.append([stream.title, stream, None])
+                self.subtitle_store.append([stream.label, stream, None])
             self.add_extra_subtitle_options()
             for i, sidecar in enumerate(sidecars):
                 self.select_subtitles_file(sidecar, select=i == 0)
@@ -868,7 +868,7 @@ class Gnomecast:
                 for audio_stream in fmd.audio_streams:
                     self.stream_store.append(
                         [
-                            f"{video_stream.title} - {audio_stream.title}",
+                            f"{video_stream.label} - {audio_stream.label}",
                             video_stream,
                             audio_stream,
                         ]

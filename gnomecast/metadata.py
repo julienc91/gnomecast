@@ -9,17 +9,51 @@ from pathlib import Path
 from typing_extensions import override
 
 from .ffmpeg import extract_thumbnail
+from .languages import language_name
 from .utils import start_thread
 
 logger = logging.getLogger(__name__)
 
 
 class StreamMetadata:
-    def __init__(self, index, codec, title):
+    def __init__(
+        self,
+        index,
+        codec,
+        title: str | None = None,
+        language: str | None = None,
+        fallback: str = "",
+    ):
         self.index = index
         self.codec = codec
-        self.title = title
+        self.title: str | None = title
+        self.language: str | None = language
+        self.fallback = fallback
+        self.hearing_impaired = False
+        self.forced = False
         self._subtitles: str | None = None
+
+    @property
+    def label(self) -> str:
+        """A human readable name, like "English (SDH)"."""
+        name = language_name(self.language)
+        if not name and self.language != "und":
+            name = self.language
+        if self.title:
+            extras = (
+                []
+                if name and self.title.casefold() == name.casefold()
+                else [self.title]
+            )
+        else:
+            extras = []
+            if self.hearing_impaired:
+                extras.append("SDH")
+            if self.forced:
+                extras.append("Forced")
+        if name:
+            return f"{name} ({', '.join(extras)})" if extras else name
+        return ", ".join(extras) or self.fallback
 
     @override
     def __repr__(self):
@@ -47,7 +81,14 @@ class AudioMetadata(StreamMetadata):
             channels = "7.1"
         else:
             channels = str(self.channels)
-        return f"{self.title} ({self.codec}/{channels})"
+        return f"{self.label} ({self.codec}/{channels})"
+
+
+def split_language(id: str) -> tuple[str, str | None]:
+    """Split an ffmpeg stream id like "0:1(eng)" into ("0:1", "eng")."""
+    if "(" in id:
+        return id[: id.index("(")], id[id.index("(") + 1 : id.index(")")]
+    return id, None
 
 
 class FileMetadata:
@@ -82,22 +123,27 @@ class FileMetadata:
                 if line.startswith("Stream") and "Video" in line:
                     _important_ffmpeg.append(line)
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
-                    title = f"Video #{len(self.video_streams) + 1}"
-                    if "(" in id:
-                        title = id[id.index("(") + 1 : id.index(")")]
-                        id = id[: id.index("(")]
+                    id, language = split_language(id)
                     video_codec = line.split()[3]
-                    stream = StreamMetadata(id, video_codec, title)
+                    stream = StreamMetadata(
+                        id,
+                        video_codec,
+                        language=language,
+                        fallback=f"Video #{len(self.video_streams) + 1}",
+                    )
                     self.video_streams.append(stream)
                 elif line.startswith("Stream") and "Audio" in line:
                     _important_ffmpeg.append(line)
-                    title = f"Audio #{len(self.audio_streams) + 1}"
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
-                    if "(" in id:
-                        title = id[id.index("(") + 1 : id.index(")")]
-                        id = id[: id.index("(")]
+                    id, language = split_language(id)
                     audio_codec = line.split()[3].strip(",")
-                    stream = AudioMetadata(id, audio_codec, title=title)
+                    stream = AudioMetadata(
+                        id,
+                        audio_codec,
+                        language=language,
+                        fallback=f"Audio #{len(self.audio_streams) + 1}",
+                    )
+                    stream.hearing_impaired = "(hearing impaired)" in line
                     if ", stereo, " in line:
                         stream.channels = 1
                     if ", stereo, " in line:
@@ -110,11 +156,15 @@ class FileMetadata:
                 elif line.startswith("Stream") and "Subtitle" in line:
                     _important_ffmpeg.append(line)
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
-                    title = f"Subtitle #{len(self.subtitles) + 1}"
-                    if "(" in id:
-                        title = id[id.index("(") + 1 : id.index(")")]
-                        id = id[: id.index("(")]
-                    stream = StreamMetadata(id, None, title)
+                    id, language = split_language(id)
+                    stream = StreamMetadata(
+                        id,
+                        None,
+                        language=language,
+                        fallback=f"Subtitle #{len(self.subtitles) + 1}",
+                    )
+                    stream.hearing_impaired = "(hearing impaired)" in line
+                    stream.forced = "(forced)" in line
                     self.subtitles.append(stream)
                 elif stream and line.startswith("title"):
                     _important_ffmpeg.append(line)
@@ -154,9 +204,9 @@ class FileMetadata:
         fields = [
             f"File: {os.path.basename(self.fn)}",
             "Video: {}".format(
-                ", ".join([f"{s.title} ({s.codec})" for s in self.video_streams])
+                ", ".join([f"{s.label} ({s.codec})" for s in self.video_streams])
             ),
             "Audio: {}".format(", ".join([s.details() for s in self.audio_streams])),
-            "Subtitles: {}".format(", ".join([s.title for s in self.subtitles])),
+            "Subtitles: {}".format(", ".join([s.label for s in self.subtitles])),
         ]
         return "\n".join(fields)
