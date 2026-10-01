@@ -1,9 +1,12 @@
+import logging
 import os
 import subprocess
 import tempfile
 from pathlib import Path
 
 import pycaption
+
+logger = logging.getLogger(__name__)
 
 SIDECAR_EXTS = ["vtt", "srt"]
 
@@ -123,7 +126,7 @@ def extract_single_subtitle(input_path: str, index: str) -> str | None:
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"Error extracting subtitle {index}: {e}")
+            logger.warning("Could not extract subtitle stream %s: %s", index, e)
             return None
         return output_file.read_text()
 
@@ -160,7 +163,7 @@ def extract_subtitles_from_file(
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"Error extracting subtitles: {e.stderr.strip()}")
+            logger.warning("Could not extract subtitles from %s: %s", input_path, e)
             return None
 
         result = []

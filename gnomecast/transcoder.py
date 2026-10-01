@@ -1,5 +1,7 @@
+import logging
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import time
@@ -12,7 +14,9 @@ from .cache import (
 )
 from .devices import Device, get_device
 from .ffmpeg import parse_ffmpeg_time
-from .utils import start_thread
+from .utils import humanize_seconds, start_thread
+
+logger = logging.getLogger(__name__)
 
 AUDIO_EXTS = ("aac", "mp3", "wav")
 
@@ -40,7 +44,6 @@ class Transcoder:
         if prev_transcoder:
             prev_transcoder.destroy()
 
-        print("Transcoder", fn)
         transcode_container = fmd.container not in ("mp4", "aac", "mp3", "wav")
         self.transcode_video = not self.can_play_video_codec(video_stream.codec)
         self.transcode_audio = not self.can_play_audio_stream(self.audio_stream)
@@ -53,12 +56,6 @@ class Transcoder:
         self.progress_seconds = 0
         self.done_callback = done_callback
         self.error_callback = error_callback
-        print(
-            "transcode, transcode_video, transcode_audio",
-            self.transcode,
-            self.transcode_video,
-            self.transcode_audio,
-        )
         if self.transcode:
             self.done = False
 
@@ -66,6 +63,20 @@ class Transcoder:
                 "ac3"
                 if self.device.ac3 and audio_stream and audio_stream.channels > 2
                 else "mp3"
+            )
+
+            logger.info(
+                "Transcode plan for %s: %s → mp4, video %s, audio %s",
+                os.path.basename(fn),
+                fmd.container,
+                f"{video_stream.codec} → h264"
+                if self.transcode_video
+                else f"{video_stream.codec} (copy)",
+                "none"
+                if not audio_stream
+                else f"{audio_stream.codec} → {transcode_audio_to}"
+                if self.transcode_audio
+                else f"{audio_stream.codec} (copy)",
             )
 
             # Build the ffmpeg command (without output path) for cache comparison
@@ -106,7 +117,7 @@ class Transcoder:
 
             # Check transcode cache before starting ffmpeg
             if check_transcode_cache(self.source_fn, self.transcode_cmd):
-                print("Using cached transcode:", TRANSCODE_CACHE_MP4)
+                logger.info("Using cached transcode: %s", TRANSCODE_CACHE_MP4)
                 self.trans_fn = TRANSCODE_CACHE_MP4
                 self.using_cache = True
                 self.done = True
@@ -122,15 +133,14 @@ class Transcoder:
             os.remove(self.trans_fn)
 
             self.transcode_cmd += [self.trans_fn]
-            print(" ".join([f"'{s}'" if " " in s else s for s in self.transcode_cmd]))
-            print("---------------------")
-            print(" starting ffmpeg at:")
-            print("---------------------")
+            logger.debug("Running %s", shlex.join(self.transcode_cmd))
+            self.start_time = time.monotonic()
             self.p = subprocess.Popen(
                 self.transcode_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
             start_thread(self.monitor, daemon=True)
         else:
+            logger.info("No transcode needed for %s", os.path.basename(fn))
             self.done = True
             self.done_callback()
 
@@ -162,20 +172,28 @@ class Transcoder:
     def wait_for_byte(self, offset, buffer=128 * 1024 * 1024):
         if self.done:
             return
+        start = time.monotonic()
         if self.source_fn.lower().split(".")[-1] == "mp4":
+            if offset <= self.progress_bytes + buffer:
+                return
+            logger.info(
+                "Waiting for transcode to reach %d MiB (at %d MiB)",
+                offset // 2**20,
+                self.progress_bytes // 2**20,
+            )
             while offset > self.progress_bytes + buffer:
-                print("waiting for", offset, "at", self.progress_bytes + buffer)
                 time.sleep(2)
         else:
+            logger.info("Waiting for transcode to finish before serving the file")
             while not self.done:  # ty: ignore[redundant-condition-strict]
-                print("waiting for transcode to finish")
                 time.sleep(2)
-        print("done waiting")
+        logger.info("Done waiting after %.0fs", time.monotonic() - start)
 
     def monitor(self):
         line = b""
         r = re.compile(r"=\s+")
         total_output = b""
+        last_progress_log = 0.0
         while self.p:
             assert self.p.stdout is not None
             byte = self.p.stdout.read(1)
@@ -190,23 +208,41 @@ class Transcoder:
                     line = r.sub("=", line)
                     items = [s.split("=") for s in line.split()]
                     d = dict([x for x in items if len(x) == 2])
-                    print(d)
                     self.progress_bytes = (
                         int(d.get("size", "0kb").lower().rstrip("kib")) * 1024
                     )
                     progress = parse_ffmpeg_time(d.get("time", "00:00:00"))
                     if progress is not None:
                         self.progress_seconds = progress
+                    if time.monotonic() - last_progress_log >= 10:
+                        last_progress_log = time.monotonic()
+                        logger.debug(
+                            "Transcode progress: %s, %d MiB, speed %s",
+                            humanize_seconds(self.progress_seconds),
+                            self.progress_bytes // 2**20,
+                            d.get("speed", "?"),
+                        )
                     line = b""
         if self.p:
             assert self.p.stdout is not None
             self.p.stdout.close()
             if self.p.returncode:
-                print("--== transcode error ==--")
-                print(total_output)
-                self.error_callback(total_output.decode())
+                output = total_output.decode(errors="replace")
+                tail = re.split(r"[\r\n]+", output.strip())[-20:]
+                logger.error(
+                    "Transcode of %s failed (ffmpeg exit code %d):\n%s",
+                    self.source_fn,
+                    self.p.returncode,
+                    "\n".join(tail),
+                )
+                self.error_callback(output)
                 return
         self.done = True
+        logger.info(
+            "Transcode of %s finished in %s",
+            os.path.basename(self.source_fn),
+            humanize_seconds(time.monotonic() - self.start_time),
+        )
         # Save to transcode cache
         if self.trans_fn and os.path.isfile(self.trans_fn):
             delete_transcode_cache()
@@ -220,9 +256,9 @@ class Transcoder:
                 write_transcode_cache(
                     self.source_fn, stat.st_mtime, stat.st_size, cache_cmd
                 )
-                print("Transcode cached:", TRANSCODE_CACHE_MP4)
+                logger.debug("Saved transcode to cache: %s", TRANSCODE_CACHE_MP4)
             except OSError as e:
-                print("Failed to cache transcode:", e)
+                logger.warning("Could not cache transcode: %s", e)
         if self.done_callback:
             self.done_callback(did_transcode=True)
 

@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import signal
@@ -9,6 +10,7 @@ from pathlib import Path
 
 from .ffmpeg import check_ffmpeg_installed, get_media_duration
 from .gui import show_error_dialog
+from .log import setup_logging
 from .metadata import AudioMetadata, FileMetadata, StreamMetadata
 from .player import (
     CastPlayer,
@@ -46,8 +48,10 @@ https://github.com/keredson/gnomecast\n
 Thanks! - Gnomecast
 {}
 """
-    print(ERROR_MESSAGE.format(line, line))
+    print(ERROR_MESSAGE.format(line, line), file=sys.stderr)
     sys.exit(1)
+
+logger = logging.getLogger(__name__)
 
 
 class Gnomecast:
@@ -409,7 +413,6 @@ class Gnomecast:
             self.queue_files([fn])
 
     def update_button_visible(self, x=None, y=None, z=None):
-        print("update_button_visible")
         count = len(self.files_store)
         self.scrolled_window.set_visible(bool(count))
         self.remove_button.set_visible(bool(count))
@@ -427,7 +430,6 @@ class Gnomecast:
         self.file_detail_row.set_visible(bool(self.fn))
 
     def scrubber_move_started(self, scale, scroll_type, seconds):
-        print("scrubber_move_started", seconds)
         self.player.begin_seek()
 
     def on_files_view_selection_changed(self, selection):
@@ -437,20 +439,20 @@ class Gnomecast:
     def remove_files(self, w):
         store, paths = self.files_view.get_selection().get_selected_rows()
         for path in reversed(paths):
-            print("remove", path)
             iterx = store.get_iter(path)
             transcoder = store.get_value(iterx, 7)
             if transcoder:
                 transcoder.destroy()
             fn = store.get_value(iterx, 1)
+            logger.info("Removed from queue: %s", fn)
             self.files_store.remove(iterx)
             if self.fn == fn:
                 self.unselect_file()
 
     def on_files_view_row_activated(self, widget, row, col):
         model = widget.get_model()
-        print("double-clicked", model[row][:])
         fn = model[row][1]
+        logger.info("Selected file: %s", fn)
         self.unselect_file()
         self.fn = fn
         self.transcoder = model[row][7]
@@ -485,7 +487,6 @@ class Gnomecast:
                 display = display[: MAX_LEN - 10] + "..." + display[-10:]
 
             def callback(fmd):
-                print(fmd)
                 if os.path.isfile(fmd.thumbnail_fn):
                     for row in self.files_store:
                         if row[1] == fmd.fn:
@@ -499,6 +500,7 @@ class Gnomecast:
 
                 GLib.idle_add(f)
 
+            logger.info("Queued: %s", fn)
             fmd = FileMetadata(fn, callback)
             self.files_store.append(
                 [display, fn, None, "...", None, None, None, None, fmd]
@@ -528,7 +530,6 @@ class Gnomecast:
     def scrubber_moved(self, scale, scroll_type, seconds):
         if not self.cast:
             return
-        print("scrubber_moved", seconds)
         self.player.seek(seconds)
 
     def stop_clicked(self, widget):
@@ -566,13 +567,12 @@ class Gnomecast:
 
     def play_clicked(self, widget):
         if not self.cast:
-            print("no cast selected")
+            logger.debug("Play clicked with no Chromecast selected")
             return
         if not self.fn or not self.webserver:
             return
 
         state = self.player.state
-        print("player state", state, self.fn, hash(self.fn))
         if state in ("IDLE", "UNKNOWN") or self.last_fn_played != self.fn:
             self.last_fn_played = self.fn
             subtitles_url = (
@@ -580,6 +580,12 @@ class Gnomecast:
             )
 
             current_time = self.scrubber_adj.get_value()
+            logger.info(
+                "Casting %s to '%s'%s",
+                self.fn,
+                self.cast.cast_info.friendly_name,
+                f" from {humanize_seconds(current_time)}" if current_time else "",
+            )
             self.speed_button.set_value(1.0)
             ext = self.fn.split(".")[-1]
             ext = "".join(ch for ch in ext if ch.isalnum()).lower()
@@ -619,12 +625,8 @@ class Gnomecast:
 
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
-            print("Open clicked")
-            print("File selected:", dialog.get_filenames())
             self.queue_files(dialog.get_filenames())
             # self.select_file(dialog.get_filename())
-        elif response == Gtk.ResponseType.CANCEL:
-            print("Cancel clicked")
 
         dialog.destroy()
 
@@ -653,12 +655,9 @@ class Gnomecast:
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
             filename = dialog.get_filename()
-            print("Open clicked")
-            print("File selected: " + (filename or ""))
             if filename:
                 self.select_subtitles_file(filename)
         elif response == Gtk.ResponseType.CANCEL:
-            print("Cancel clicked")
             self.subtitle_combo.set_active(0)
 
         dialog.destroy()
@@ -676,6 +675,7 @@ class Gnomecast:
         pos = len(self.subtitle_store)
         stream = StreamMetadata(None, None, display_name)
         stream._subtitles = convert_subtitles_to_webvtt(subtitles_path)
+        logger.info("Loaded subtitles file: %s", subtitles_path)
         self.subtitle_store.append([display_name, stream, None])
         if select:
             self.subtitles = stream._subtitles
@@ -784,7 +784,7 @@ class Gnomecast:
         for row in self.files_store:
             fn = row[1]
             if next:
-                print("check_for_next_in_queue", fn)
+                logger.info("Autoplaying next in queue: %s", fn)
                 self.autoplay = True
                 self.select_file(fn)
                 next = False
@@ -798,7 +798,7 @@ class Gnomecast:
             transcoder = row[7]
             fmd = row[8]
             if transcode_next and not transcoder:
-                print("prep_next_transcode", fn)
+                logger.debug("Preparing next in queue: %s", fn)
                 transcoder = Transcoder(
                     self.cast,
                     fmd,
@@ -886,6 +886,15 @@ class Gnomecast:
         return False
 
     def select_cast(self, cast):
+        if cast:
+            info = cast.cast_info
+            logger.info(
+                "Selected Chromecast '%s' (%s %s at %s)",
+                info.friendly_name,
+                info.manufacturer,
+                info.model_name,
+                info.host,
+            )
         self.player.select(cast)
         volume = self.player.volume_level
         if volume is not None:
@@ -926,7 +935,6 @@ class Gnomecast:
         GLib.idle_add(f)
 
     def show_file_info(self, b=None):
-        print("show_file_info")
         fmd = self.get_fmd()
         msg = "\n" + fmd.details()
         if self.cast:
@@ -1004,12 +1012,13 @@ class Gnomecast:
         text = userEntry.get_text()
         dialogWindow.destroy()
         if (response == Gtk.ResponseType.OK) and (text != ""):
-            print(text)
+            logger.info("Connecting to Chromecast at %s", text)
             try:
                 cast = cast_from_host(text)
                 self.cast_store.append([cast, text])
                 self.cast_combo.set_active(len(self.cast_store) - 1)
-            except ChromecastConnectionError:
+            except ChromecastConnectionError as e:
+                logger.error("Could not connect to Chromecast at %s: %s", text, e)
                 dialog = Gtk.MessageDialog(
                     transient_for=self.win,
                     message_type=Gtk.MessageType.ERROR,
@@ -1028,7 +1037,6 @@ class Gnomecast:
             if cast == -1:
                 self.get_nonlocal_cast()
             else:
-                print(cast)
                 self.select_cast(cast)
         else:
             combo.get_child()
@@ -1038,10 +1046,10 @@ class Gnomecast:
         if tree_iter is not None:
             model = combo.get_model()
             text, stream, callback = model[tree_iter]
-            print("chose subtitle", text, stream, callback)
             if callback:
                 callback()
             else:
+                logger.info("Subtitles: %s", text)
                 if stream and stream._subtitles is None:
                     fmd = self.get_fmd()
                     stream._subtitles = extract_single_subtitle(fmd.fn, stream.index)
@@ -1061,8 +1069,11 @@ class Gnomecast:
         tree_iter = combo.get_active_iter()
         if tree_iter is not None:
             model = combo.get_model()
-            text, video_stream, audio_stream = model[tree_iter]
-            print(text, video_stream, audio_stream)
+            _text, video_stream, audio_stream = model[tree_iter]
+            logger.info(
+                "Audio track: %s",
+                audio_stream.details() if audio_stream else "none",
+            )
             self.video_stream = video_stream
             self.audio_stream = audio_stream
             start_thread(self.update_transcoders)
@@ -1090,13 +1101,13 @@ def arg_parse(args, kw_synonyms, f, usage):
         f(*f_args, **f_kwargs)
     except TypeError as e:
         msg = str(e).split("()", 1)[1].strip()
-        print("ERROR:", msg)
-        print(usage)
+        print("ERROR:", msg, file=sys.stderr)
+        print(usage, file=sys.stderr)
         sys.exit(1)
 
 
 USAGE = """
-python gnomecast.py [<media_filename>] [-d|--device <chromecast_name>] [-s|--subtitles <subtitles_filename>]
+python gnomecast.py [<media_filename>] [-d|--device <chromecast_name>] [-s|--subtitles <subtitles_filename>] [-v|--verbose]
 """.strip()
 
 
@@ -1114,14 +1125,24 @@ def delete_old_transcodes():
             if match:
                 pid = int(match.group(1))
                 if not is_pid_running(pid):
-                    print("\tpid", pid, "is dead, so deleting", fn)
+                    logger.debug("Deleting leftover file from dead pid %d: %s", pid, fn)
                     os.remove(fn)
             else:
-                print("old style gnomecast file", fn, "found, so deleting...")
+                logger.debug("Deleting old-style leftover file: %s", fn)
                 os.remove(fn)
 
 
-def main():
+def start(fn=None, device=None, subtitles=None, verbose=False):
+    setup_logging(verbose=verbose)
+    logger.info("Gnomecast v%s starting", __version__)
     delete_old_transcodes()
-    caster = Gnomecast()
-    arg_parse(sys.argv[1:], {"s": "subtitles", "d": "device"}, caster.run, USAGE)
+    Gnomecast().run(fn, device=device, subtitles=subtitles)
+
+
+def main():
+    arg_parse(
+        sys.argv[1:],
+        {"s": "subtitles", "d": "device", "v": "verbose"},
+        start,
+        USAGE,
+    )

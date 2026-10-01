@@ -1,3 +1,4 @@
+import logging
 from functools import cached_property
 from typing import TYPE_CHECKING
 
@@ -8,7 +9,8 @@ try:
     import dbus
 except ImportError:
     dbus = None
-    print("DBus is not available. Screen saver inhibition will not work.")
+
+logger = logging.getLogger(__name__)
 
 
 class ScreenSaverInhibitor:
@@ -18,6 +20,7 @@ class ScreenSaverInhibitor:
     @cached_property
     def screen_saver_interface(self) -> "_dbus.Interface | None":
         if dbus is None:
+            logger.warning("DBus is not available, screen saver won't be inhibited")
             return None
 
         bus = dbus.SessionBus()
@@ -30,7 +33,9 @@ class ScreenSaverInhibitor:
                 return dbus.Interface(saver, dbus_interface=path)
             except dbus.exceptions.DBusException:
                 pass
-        print("No screen saver interface found. Screen saver inhibition will not work.")
+        logger.warning(
+            "No screen saver interface found, screen saver won't be inhibited"
+        )
         return None
 
     def start(self) -> None:

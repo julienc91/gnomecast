@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 from collections.abc import Callable
@@ -16,11 +17,21 @@ __all__ = [
     "discover_casts",
 ]
 
+logger = logging.getLogger(__name__)
+
 ACTIVE_STATES = ("BUFFERING", "PLAYING", "PAUSED")
 
 
 def discover_casts() -> list[pychromecast.Chromecast]:
     chromecasts, _ = pychromecast.get_chromecasts()
+    logger.info(
+        "Found %d Chromecast(s)%s",
+        len(chromecasts),
+        "".join(
+            f"\n  - {cc.cast_info.friendly_name} ({cc.cast_info.model_name}, {cc.cast_info.host})"
+            for cc in chromecasts
+        ),
+    )
     return chromecasts
 
 
@@ -37,7 +48,7 @@ def _try_cast_command(command, *args) -> None:
     try:
         command(*args)
     except pychromecast.error.PyChromecastError as e:
-        print("cast command failed (ignored):", e)
+        logger.debug("Cast command %s failed (ignored): %s", command.__name__, e)
 
 
 class CastPlayer:
@@ -111,6 +122,7 @@ class CastPlayer:
         cast.wait()
         _try_cast_command(cast.quit_app)
         mc = cast.media_controller
+        logger.debug("Loading media %s (%s)", url, content_type)
         mc.play_media(
             url,
             content_type,
@@ -118,8 +130,6 @@ class CastPlayer:
             current_time=current_time,
             stream_type=pychromecast.STREAM_TYPE_BUFFERED,
         )
-        print(cast.status)
-        print(mc.status)
 
     def toggle_pause(self) -> None:
         if not self.cast:
@@ -148,6 +158,7 @@ class CastPlayer:
     def seek(self, seconds: float) -> None:
         if not self.cast:
             return
+        logger.debug("Seeking to %.1fs", seconds)
         self.seeking = True
         self.seek_confirmed_after = datetime.now(UTC)
         self.cast.media_controller.seek(seconds)
@@ -173,7 +184,7 @@ class CastPlayer:
         if self.last_known_volume_level != volume:
             self.last_known_volume_level = volume
             self.cast.set_volume(volume)
-            print("setting volume", volume)
+            logger.debug("Volume set to %.2f", volume)
 
     def set_playback_rate(self, rate: float) -> None:
         if not self.cast:
@@ -208,6 +219,12 @@ class CastPlayer:
             seeking = self.seeking
             state = mc.status.player_state
             if state != self.last_known_player_state:
+                if self.last_known_player_state:
+                    logger.info(
+                        "Player state: %s → %s", self.last_known_player_state, state
+                    )
+                else:
+                    logger.info("Player state: %s", state)
                 if state == "IDLE" and self.last_known_player_state == "PLAYING":
                     self.on_finished()
                 self.last_known_player_state = state

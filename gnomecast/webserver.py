@@ -1,8 +1,12 @@
+import logging
+
 import bottle
 from paste import httpserver
 from paste.translogger import TransLogger
 
 from gnomecast.utils import get_webserver_ip_address, get_webserver_port
+
+logger = logging.getLogger(__name__)
 
 
 class GnomecastWebServer:
@@ -34,13 +38,11 @@ class GnomecastWebServer:
 
         @app.get("/media/<id>.<ext>")  # ty: ignore[dynamic-function-decorator-return]
         def video(id, ext):
-            print(list(bottle.request.headers.items()))
             ranges = list(
                 bottle.parse_range_header(
                     bottle.request.environ["HTTP_RANGE"], 1000000000000
                 )
             )
-            print("ranges", ranges)
             offset, _end = ranges[0]
             transcoder = self.get_transcoder()
             transcoder.wait_for_byte(offset)
@@ -52,7 +54,20 @@ class GnomecastWebServer:
             return response
 
     def start(self) -> None:
-        handler = TransLogger(self.app, setup_console_handler=True)
-        httpserver.serve(
-            handler, host=self.ip, port=str(self.port), daemon_threads=True
+        logger.info("Serving media on http://%s:%d", self.ip, self.port)
+        handler = TransLogger(
+            self.app,
+            logger_name=f"{__name__}.http",
+            logging_level=logging.DEBUG,
+            setup_console_handler=False,
+            set_logger_level=None,
         )
+        # start_loop=False skips paste's own "serving on" print
+        server = httpserver.serve(
+            handler,
+            host=self.ip,
+            port=str(self.port),
+            daemon_threads=True,
+            start_loop=False,
+        )
+        server.serve_forever()

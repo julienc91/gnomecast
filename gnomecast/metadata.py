@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import subprocess
@@ -9,6 +10,8 @@ from typing_extensions import override
 
 from .ffmpeg import extract_thumbnail
 from .utils import start_thread
+
+logger = logging.getLogger(__name__)
 
 
 class StreamMetadata:
@@ -107,7 +110,6 @@ class FileMetadata:
                 elif line.startswith("Stream") and "Subtitle" in line:
                     _important_ffmpeg.append(line)
                     id = re.sub(r"\[.*?\]", "", line.split()[1].strip("#").strip(":"))
-                    print(line, id)
                     title = f"Subtitle #{len(self.subtitles) + 1}"
                     if "(" in id:
                         title = id[id.index("(") + 1 : id.index(")")]
@@ -121,6 +123,14 @@ class FileMetadata:
                     break
             self._important_ffmpeg = "\n".join(_important_ffmpeg)
             self.load_subtitles()
+            logger.debug(
+                "Probed %s: %s container, %d video, %d audio, %d subtitle stream(s)",
+                fn,
+                self.container,
+                len(self.video_streams),
+                len(self.audio_streams),
+                len(self.subtitles),
+            )
             self.ready = True
             if callback:
                 callback(self)
