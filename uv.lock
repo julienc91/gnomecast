@@ -263,9 +263,9 @@ wheels = [
 
 [[package]]
 name = "dbus-python"
-version = "1.4.0"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ff/24/63118050c7dd7be04b1ccd60eab53fef00abe844442e1b6dec92dae505d6/dbus-python-1.4.0.tar.gz", hash = "sha256:991666e498f60dbf3e49b8b7678f5559b8a65034fdf61aae62cdecdb7d89c770", size = 232490, upload-time = "2025-03-13T19:57:54.212Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/4a/7639053065589ebdb59edd2582884201416ebfcb7a9e1d6c54da50072729/dbus_python-1.5.0.tar.gz", hash = "sha256:ac94ce330879108e5d37105164cc14b595bdf9326d2ce4a5acad6c1ab2bf6476", size = 203989, upload-time = "2026-09-27T15:04:41.684Z" }
 
 [[package]]
 name = "distlib"
@@ -609,16 +609,16 @@ wheels = [
 
 [[package]]
 name = "pycaption"
-version = "2.3.9"
+version = "2.3.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "cssutils" },
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/97/af65fd767ea5c12ee30dbfb722b98db7ac02182b32f65a317c5cb343591d/pycaption-2.3.9.tar.gz", hash = "sha256:63067362ad31cdfcd46f218b6298276231c2cddad9437b05eea5d0dde49ace0c", size = 164481, upload-time = "2026-08-25T11:49:25.03Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/17/b4/469dad24a5bb1069c4e605778dead3d64f34bd002d30d4d61395805b96d3/pycaption-2.3.10.tar.gz", hash = "sha256:c30da5f50053d98ae79402cf546e129d0e008cda8b0a451119bae4d633a458f5", size = 178554, upload-time = "2026-09-23T08:28:32.499Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/04/42ee90ce8e84aa0037e5dbb8cc372ba6d9caf0af87b905ce51f6e1041c39/pycaption-2.3.9-py3-none-any.whl", hash = "sha256:6686e375a8b10fa07df62fdeb196a33f6efbf82345ecaeee0d5dd63dbe1fe4d5", size = 186128, upload-time = "2026-08-25T11:49:24.044Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/6e/2fee85fa1a85259019528496c424e0113dce781c54a66f8c6bb2172f5d47/pycaption-2.3.10-py3-none-any.whl", hash = "sha256:5d4c757d7e6d3e3728eab728855a03a394014dce58b237a5b181d1d955c50268", size = 199996, upload-time = "2026-09-23T08:28:31.234Z" },
 ]
 
 [[package]]
