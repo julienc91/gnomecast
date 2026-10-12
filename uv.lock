@@ -609,16 +609,16 @@ wheels = [
 
 [[package]]
 name = "pycaption"
-version = "2.3.10"
+version = "2.3.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "cssutils" },
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/17/b4/469dad24a5bb1069c4e605778dead3d64f34bd002d30d4d61395805b96d3/pycaption-2.3.10.tar.gz", hash = "sha256:c30da5f50053d98ae79402cf546e129d0e008cda8b0a451119bae4d633a458f5", size = 178554, upload-time = "2026-09-23T08:28:32.499Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/35/7d1398970d751eb0a920083b470a85eaa9470cfbcde6af05f5af3882e5e2/pycaption-2.3.12.tar.gz", hash = "sha256:defd8e0c17a25aaf7f69da8ca6dac780b8477cb9f248904bf67bdfebbbd93167", size = 198261, upload-time = "2026-09-28T11:13:10.205Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/6e/2fee85fa1a85259019528496c424e0113dce781c54a66f8c6bb2172f5d47/pycaption-2.3.10-py3-none-any.whl", hash = "sha256:5d4c757d7e6d3e3728eab728855a03a394014dce58b237a5b181d1d955c50268", size = 199996, upload-time = "2026-09-23T08:28:31.234Z" },
+    { url = "https://files.pythonhosted.org/packages/09/be/c4bca11bd9ba519a4a4a513f5ba89e6bb0001f548b299b0fc48fe0351138/pycaption-2.3.12-py3-none-any.whl", hash = "sha256:9f6d08c88f9d17498e40515fc3ac74d14a1eb17c859d8b5508d8c9021222899a", size = 220301, upload-time = "2026-09-28T11:13:08.81Z" },
 ]
 
 [[package]]
