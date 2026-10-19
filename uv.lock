@@ -609,16 +609,16 @@ wheels = [
 
 [[package]]
 name = "pycaption"
-version = "2.3.12"
+version = "2.3.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "cssutils" },
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/35/7d1398970d751eb0a920083b470a85eaa9470cfbcde6af05f5af3882e5e2/pycaption-2.3.12.tar.gz", hash = "sha256:defd8e0c17a25aaf7f69da8ca6dac780b8477cb9f248904bf67bdfebbbd93167", size = 198261, upload-time = "2026-09-28T11:13:10.205Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/46/d615c926b66d4c0b8c24b809676506bdf6656fa0bac7b2517f71bbb23a6d/pycaption-2.3.13.tar.gz", hash = "sha256:693df4da311f6f919bf12e144512a5d7cb463bbc417cd0053cf19de17d0b8b45", size = 203349, upload-time = "2026-10-06T09:05:54.906Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/be/c4bca11bd9ba519a4a4a513f5ba89e6bb0001f548b299b0fc48fe0351138/pycaption-2.3.12-py3-none-any.whl", hash = "sha256:9f6d08c88f9d17498e40515fc3ac74d14a1eb17c859d8b5508d8c9021222899a", size = 220301, upload-time = "2026-09-28T11:13:08.81Z" },
+    { url = "https://files.pythonhosted.org/packages/03/e0/4a4b49f436c80a2e9515d258d6c72057f52b4855f53023ee42d2959b164f/pycaption-2.3.13-py3-none-any.whl", hash = "sha256:9eafd5166e266d3859e293fac4c15e3b4cae6342130ec39c1e06a284bf5da386", size = 225843, upload-time = "2026-10-06T09:05:53.761Z" },
 ]
 
 [[package]]
@@ -637,12 +637,12 @@ wheels = [
 
 [[package]]
 name = "pygobject"
-version = "3.58.0"
+version = "3.58.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pycairo" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/9b/473a5234ec86bce978d3583adc62441c84cc57181c4ea8a8978997c7f0c1/pygobject-3.58.0.tar.gz", hash = "sha256:45068697de3ffe46840ca369705f23118b34db4f7deb63f6eff079a6734ddcca", size = 1408568, upload-time = "2026-08-28T06:50:27.22Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/1e/d590f82e14db75945b03f6b63e0f19662e0340babd8f574fdb1bb5a015e2/pygobject-3.58.1.tar.gz", hash = "sha256:4c80598ade17fbaa7798e01a25d0bf29ce109740786026a074c5c62bb3e79d23", size = 1408671, upload-time = "2026-10-09T11:29:48.929Z" }
 
 [[package]]
 name = "pygobject-stubs"
