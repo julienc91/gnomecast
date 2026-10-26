@@ -219,7 +219,7 @@ class CastPlayer:
             seeking = self.seeking
             state = mc.status.player_state
             if state != self.last_known_player_state:
-                if self.last_known_player_state:
+                if self.last_known_player_state is not None:
                     logger.info(
                         "Player state: %s → %s", self.last_known_player_state, state
                     )

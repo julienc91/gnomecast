@@ -75,7 +75,7 @@ def start_thread(
 ) -> None:
     args = args or ()
     kwargs = kwargs or {}
-    if delay:
+    if delay is not None and delay > 0:
         if daemon:
             raise ValueError("Cannot use delay with daemon threads")
         thread = threading.Timer(delay, target, args=args, kwargs=kwargs)

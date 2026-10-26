@@ -244,7 +244,7 @@ class Transcoder:
             humanize_seconds(time.monotonic() - self.start_time),
         )
         # Save to transcode cache
-        if self.trans_fn and os.path.isfile(self.trans_fn):
+        if self.trans_fn is not None and os.path.isfile(self.trans_fn):
             delete_transcode_cache()
             try:
                 os.rename(self.trans_fn, TRANSCODE_CACHE_MP4)
@@ -265,7 +265,11 @@ class Transcoder:
     def destroy(self):
         if self.p and self.p.poll() is None:
             self.p.terminate()
-        if self.trans_fn and os.path.isfile(self.trans_fn) and not self.using_cache:
+        if (
+            self.trans_fn is not None
+            and os.path.isfile(self.trans_fn)
+            and not self.using_cache
+        ):
             os.remove(self.trans_fn)
 
     def __del__(self):

@@ -42,7 +42,7 @@ THREE_LETTER_LANGS = {
 
 def language_from_locale(locale_name: str | None) -> str | None:
     """Return the 2-letter language code of a locale name like "fr_FR.UTF-8"."""
-    if not locale_name or locale_name in ("C", "POSIX"):
+    if not bool(locale_name) or locale_name in ("C", "POSIX"):
         return None
     lang = locale_name.split("_")[0].split(".")[0].lower()
     return lang if len(lang) == 2 else None
@@ -82,7 +82,7 @@ def find_sidecar_subtitles(video_path: Path, lang: str | None) -> list[Path]:
         if ext not in SIDECAR_EXTS or len(parts) > 2:
             continue
         tag = parts[0] if len(parts) == 2 else ""
-        if lang and tag and _lang_matches(tag, lang):
+        if bool(lang) and tag and _lang_matches(tag, lang):
             group = 0
         elif not tag:
             group = 1

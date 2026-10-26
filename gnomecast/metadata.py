@@ -37,12 +37,12 @@ class StreamMetadata:
     def label(self) -> str:
         """A human readable name, like "English (SDH)"."""
         name = language_name(self.language)
-        if not name and self.language != "und":
+        if not bool(name) and self.language != "und":
             name = self.language
-        if self.title:
+        if bool(self.title):
             extras = (
                 []
-                if name and self.title.casefold() == name.casefold()
+                if bool(name) and self.title.casefold() == name.casefold()
                 else [self.title]
             )
         else:
@@ -51,7 +51,7 @@ class StreamMetadata:
                 extras.append("SDH")
             if self.forced:
                 extras.append("Forced")
-        if name:
+        if bool(name):
             return f"{name} ({', '.join(extras)})" if extras else name
         return ", ".join(extras) or self.fallback
 

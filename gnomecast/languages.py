@@ -45,13 +45,13 @@ def language_name(code: str | None) -> str | None:
     Return the localized name of a language tag like "fre", "fr" or "fr-CA",
     or None if it's unknown or undetermined.
     """
-    if not code:
+    if not bool(code):
         return None
     code = code.lower().replace("_", "-").split("-")[0]
     if code in ("und", "mis", "zxx"):
         return None
     name = _load_languages().get(code)
-    if not name:
+    if not bool(name):
         return None
     # "Grec moderne (après 1453)" -> "Grec moderne", "Malay (macrolanguage)" -> "Malay"
     return re.sub(r"\s*\(.*\)$", "", name)

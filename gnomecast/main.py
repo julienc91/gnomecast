@@ -203,7 +203,7 @@ class Gnomecast:
             if state == "PLAYING"
             else Gtk.Image(stock=Gtk.STOCK_MEDIA_PLAY)
         )
-        if self.transcoder and self.duration:
+        if self.transcoder and self.duration is not None and self.duration > 0:
             self.scrubber_adj.set_upper(self.duration)
             self.scrubber.set_sensitive(True)
         else:
@@ -254,20 +254,26 @@ class Gnomecast:
         self.files_view.get_selection().set_mode(Gtk.SelectionMode.MULTIPLE)
         self.files_view.set_headers_visible(False)
         self.files_view.set_rules_hint(True)
-        column = Gtk.TreeViewColumn("Name", Gtk.CellRendererText(), text=0)
+        r = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("Name", r)
+        column.add_attribute(r, "text", 0)
         column.set_expand(True)
         self.files_view.append_column(column)
         self.file_view_column_renderer = r = Gtk.CellRendererText()
         r.props.xalign = 1.0
-        self.files_view.append_column(Gtk.TreeViewColumn("Duration", r, text=3))
+        column_duration = Gtk.TreeViewColumn("Duration", r)
+        column_duration.add_attribute(r, "text", 3)
+        self.files_view.append_column(column_duration)
+        r = Gtk.CellRendererProgress()
         self.files_view_progress_column = column_progress = Gtk.TreeViewColumn(
-            "Progress", Gtk.CellRendererProgress(), value=5
+            "Progress", r
         )
+        column_progress.add_attribute(r, "value", 5)
         self.files_view.append_column(column_progress)
 
-        column_pixbuf = Gtk.TreeViewColumn(
-            "Playing", Gtk.CellRendererPixbuf(), icon_name=6
-        )
+        r = Gtk.CellRendererPixbuf()
+        column_pixbuf = Gtk.TreeViewColumn("Playing", r)
+        column_pixbuf.add_attribute(r, "icon_name", 6)
         self.files_view.append_column(column_pixbuf)
 
         select = self.files_view.get_selection()
@@ -332,7 +338,9 @@ class Gnomecast:
         file_info_button.connect("clicked", self.show_file_info)
         self.file_detail_row.pack_start(file_info_button, False, False, 0)
 
-        self.scrubber_adj = Gtk.Adjustment(0, 0, 100, 15, 60, 0)
+        self.scrubber_adj = Gtk.Adjustment(
+            value=0, lower=0, upper=100, step_increment=15, page_increment=60
+        )
         self.scrubber = Gtk.Scale(
             orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.scrubber_adj
         )
@@ -378,7 +386,15 @@ class Gnomecast:
         speed_label.set_tooltip_text("Playback speed")
         hbox.pack_start(speed_label, False, False, 0)
         self.speed_button = Gtk.SpinButton()
-        self.speed_button.set_adjustment(Gtk.Adjustment(1.0, 0.5, 2.0, 0.05, 0.25, 0))
+        self.speed_button.set_adjustment(
+            Gtk.Adjustment(
+                value=1.0,
+                lower=0.5,
+                upper=2.0,
+                step_increment=0.05,
+                page_increment=0.25,
+            )
+        )
         self.speed_button.set_digits(2)
         self.speed_button.set_width_chars(5)
         self.speed_button.set_tooltip_text("Playback speed")
@@ -543,7 +559,7 @@ class Gnomecast:
         pixbuf = GdkPixbuf.Pixbuf.new_from_stream(f, None)
         return pixbuf
 
-    def quit(self, a=0, b=0):
+    def quit(self, *args) -> bool:
         for row in self.files_store:
             transcoder = row[7]
             if transcoder:
@@ -553,6 +569,7 @@ class Gnomecast:
                 os.remove(thumbnail_fn)
         self.screen_saver_inhibitor.stop()
         self.main_loop.quit()
+        return False
 
     def forward_clicked(self, widget):
         self.seek_delta(30)
@@ -569,14 +586,14 @@ class Gnomecast:
         if not self.cast:
             logger.debug("Play clicked with no Chromecast selected")
             return
-        if not self.fn or not self.webserver:
+        if self.fn is None or not self.webserver:
             return
 
         state = self.player.state
         if state in ("IDLE", "UNKNOWN") or self.last_fn_played != self.fn:
             self.last_fn_played = self.fn
             subtitles_url = (
-                self.webserver.get_subtitles_url() if self.subtitles else None
+                self.webserver.get_subtitles_url() if bool(self.subtitles) else None
             )
 
             current_time = self.scrubber_adj.get_value()
@@ -643,7 +660,7 @@ class Gnomecast:
             Gtk.ResponseType.OK,
         )
 
-        if self.fn:
+        if self.fn is not None:
             dialog.set_current_folder(os.path.dirname(self.fn))
 
         filter_py = Gtk.FileFilter()
@@ -655,7 +672,7 @@ class Gnomecast:
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
             filename = dialog.get_filename()
-            if filename:
+            if filename is not None:
                 self.select_subtitles_file(filename)
         elif response == Gtk.ResponseType.CANCEL:
             self.subtitle_combo.set_active(0)
@@ -738,7 +755,7 @@ class Gnomecast:
 
     def update_transcoders(self):
         with self.update_transcoders_lock:
-            if self.cast and self.fn:
+            if self.cast and self.fn is not None:
                 transcoder = None
                 for row in self.files_store:
                     if row[1] != self.fn:
@@ -788,7 +805,7 @@ class Gnomecast:
                 self.autoplay = True
                 self.select_file(fn)
                 next = False
-            if self.cast and self.fn and self.fn == fn:
+            if self.cast and self.fn is not None and self.fn == fn:
                 next = True
 
     def prep_next_transcode(self):
@@ -814,7 +831,7 @@ class Gnomecast:
                 transcode_next = False
             if (
                 self.cast
-                and self.fn
+                and self.fn is not None
                 and self.fn == fn
                 and transcoder
                 and transcoder.done
@@ -844,7 +861,7 @@ class Gnomecast:
 
         sidecars = (
             find_sidecar_subtitles(Path(self.fn), get_preferred_language())
-            if self.fn
+            if self.fn is not None
             else []
         )
 
@@ -951,7 +968,7 @@ class Gnomecast:
         dialogWindow.set_title("File Info")
         dialogWindow.set_default_size(1, 400)
 
-        if self.cast and self.fn:
+        if self.cast and self.fn is not None:
             title = f"Error playing {os.path.basename(self.fn)}"
             body = f"""
 [Please describe what happened here...]
@@ -971,7 +988,7 @@ class Gnomecast:
 ```{fmd._important_ffmpeg}``` """
             url = f"https://github.com/keredson/gnomecast/issues/new?title={urllib.parse.quote(title)}&body={urllib.parse.quote(body)}"
             dialogWindow.add_action_widget(
-                Gtk.LinkButton(url, label="Report File Doesn't Play"), 10
+                Gtk.LinkButton(uri=url, label="Report File Doesn't Play"), 10
             )
 
         dialogBox = dialogWindow.get_content_area()
