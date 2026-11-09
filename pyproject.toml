@@ -13,9 +13,9 @@ dependencies = [
     "bottle~=0.13.3",
     "dbus-python>=1.4.0",
     "html5lib~=1.1",
-    "paste~=3.10.1",
+    "paste>=3.10.1,<3.12.0",
     "pycaption~=2.3.8",
-    "pychromecast~=14.0.10",
+    "pychromecast>=14.0.10,<14.2.0",
     "pygobject>=3.56.3,<3.59.0",
     "typing-extensions>=4.12",
 ]
