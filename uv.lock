@@ -615,30 +615,30 @@ wheels = [
 
 [[package]]
 name = "pycaption"
-version = "2.3.14"
+version = "2.3.16"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "cssutils" },
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/93/2edc17de397ad28c5e76fe96e836e56ddcf92044db058572457ab107ecd2/pycaption-2.3.14.tar.gz", hash = "sha256:67fdf9b41e4751d5a16a969a2a651ac9eaa80daae967a75fd832c85e1cdda726", size = 206470, upload-time = "2026-10-19T08:15:43.861Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/64/5f76036c8c305d6c1eea7b76ddfcee8f2366e650196a11288226b80d1917/pycaption-2.3.16.tar.gz", hash = "sha256:e5c0a318b191ee64bfbd85bcb9d37feb34c90b9d34983b98c814d249c11d31aa", size = 230324, upload-time = "2026-11-05T13:54:53.153Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/46/80504b512873e0a1560af2d8a453295e9c456ac868cf399f70bd01c70b88/pycaption-2.3.14-py3-none-any.whl", hash = "sha256:8ea8ef7fc71d9b7448646c70cbef12eaa2efeb2565ed39fbc283983b52c1bdfb", size = 229161, upload-time = "2026-10-19T08:15:42.318Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/5a/e1bdf4d49b5af4719bf525916738b4638accedf13ffab64cf4b49c5ce912/pycaption-2.3.16-py3-none-any.whl", hash = "sha256:18f44659421c9ba56c9e3669acc3097250fee98e905430adb59d4bb218f6bd50", size = 253778, upload-time = "2026-11-05T13:54:51.647Z" },
 ]
 
 [[package]]
 name = "pychromecast"
-version = "14.1.0"
+version = "14.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "casttube" },
     { name = "protobuf" },
     { name = "zeroconf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/f4/fc470f134fe482d76e8a5bc2e54d5c9b1792b569915eacccdcfb2487de21/pychromecast-14.1.0.tar.gz", hash = "sha256:17f672c5ccf8aa3ccb6ba261e51d60224d28efcc0f225c8d2ec0509eeda52efd", size = 69849, upload-time = "2026-10-28T13:27:25.702Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/c9/53bd2ccabbc5b8e57c31222320263fe4c822d1988d6632ffcbda56620100/pychromecast-14.1.1.tar.gz", hash = "sha256:9b75553770c8007bc146ca7b5ad30dd165c71bb1335a0ea6659a514087a63c67", size = 73841, upload-time = "2026-11-03T07:21:22.083Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/35/6616953221609c6277a6e7cc4bb57059209f8571bb3eead9b6db2eda2454/pychromecast-14.1.0-py2.py3-none-any.whl", hash = "sha256:53888d5c38fc03f2c9621e48ddc1ba7ccd56514b4479445ec8878ce42e182c58", size = 79638, upload-time = "2026-10-28T13:27:24.466Z" },
+    { url = "https://files.pythonhosted.org/packages/56/ed/46dfe384d86f4dbdcbb19505bbbf39aea686a6507db9984e735544e4c6a9/pychromecast-14.1.1-py2.py3-none-any.whl", hash = "sha256:c7a4f56790b3b4c3790baf7426a0ee9345a0bf082effe485b1f23eb049f1ca54", size = 80311, upload-time = "2026-11-03T07:21:20.984Z" },
 ]
 
 [[package]]
