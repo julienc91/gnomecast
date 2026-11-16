@@ -8,7 +8,7 @@ authors = [
   { name = "Derek Anderson", email = "public@kered.org" }
 ]
 urls = { Homepage = "https://github.com/keredson/gnomecast" }
-requires-python = ">=3.11"
+requires-python = ">=3.11.5"
 dependencies = [
     "bottle~=0.13.3",
     "html5lib~=1.1",
@@ -56,3 +56,6 @@ exclude = ["tests"]
 
 [tool.uv]
 config-settings-package = { pygobject-stubs = { config = "Gtk4,Gdk4" } }
+# soupsieve is pulled in transitively (pycaption -> beautifulsoup4); versions
+# < 4.0 are affected by several ReDoS/DoS advisories (e.g. GHSA-mmhr-3c5m-f64f).
+constraint-dependencies = ["soupsieve>=4.0"]
